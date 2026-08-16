@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>YouTube 字幕编辑器 - 快速切句版</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f5f7;color:#222;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:820px;margin:auto;padding:14px 12px 40px}
+h1{font-size:24px;margin:8px 0 14px}
+.card{background:#fff;border-radius:16px;padding:14px;margin:12px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button,.filebtn{border:0;border-radius:12px;padding:11px 13px;background:#111;color:#fff;font-size:15px;text-align:center}
+button.secondary,.filebtn.secondary{background:#eee;color:#222}
+input[type=file]{display:none}
+input[type=text],textarea,select{width:100%;border:1px solid #d7d7db;border-radius:10px;padding:10px;font-size:15px;background:#fff}
+.urlrow{display:grid;grid-template-columns:1fr auto;gap:8px}
+.ytbox{width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin-top:12px}
+.ytbox iframe{width:100%;height:100%;border:0}
+.small{font-size:13px;color:#777}
+.subtitle{font-size:22px;font-weight:600;text-align:center;min-height:58px;padding:12px 8px;white-space:pre-wrap}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.controls button{flex:1;min-width:90px}
+.item{border:1px solid #e6e6e8;border-radius:14px;padding:10px;margin-top:8px}
+.item.active{outline:2px solid #111}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid textarea{grid-column:1/-1;min-height:72px;resize:vertical}
+.timebox{display:grid;grid-template-columns:42px 1fr 42px;gap:6px;align-items:center}
+.timebox button{padding:9px 0;background:#eee;color:#222}
+.timeinput{font-variant-numeric:tabular-nums;text-align:center}
+.status{margin-top:8px;font-size:13px;color:#777}
+@media(max-width:640px){
+ .urlrow{grid-template-columns:1fr}
+ .grid{grid-template-columns:1fr}
+ .grid textarea{grid-column:auto}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>YouTube 字幕编辑器</h1><div class="small">快速切句版</div>
+
+<div class="card">
+  <b>1. 加载 YouTube</b>
+  <div class="urlrow" style="margin-top:10px">
+    <input id="ytUrl" type="text" placeholder="粘贴 YouTube / Shorts / youtu.be 链接">
+    <button id="loadYt">加载</button>
+  </div>
+  <div id="ytHolder"></div>
+  <div id="ytStatus" class="status">尚未加载视频</div>
+</div>
+
+<div class="card">
+  <b>2. 导入字幕</b>
+  <div class="row" style="margin-top:10px">
+    <label class="filebtn">＋ 导入 SRT / VTT<input id="srtFile" type="file" accept="*/*"></label>
+    <button class="secondary" id="addSub">＋ 添加一条</button>
+  </div>
+  <div id="subStatus" class="status">尚未导入字幕</div>
+</div>
+
+<div class="card">
+  <div id="currentSubtitle" class="subtitle">字幕会显示在这里</div>
+  <div id="currentMeta" class="small" style="text-align:center">0 / 0</div>
+
+  <div class="controls">
+    <button class="secondary" id="rewind">⏪ 快退</button>
+    <button id="togglePlay">▶️ 播放</button>
+    <button class="secondary" id="forward">快进 ⏩</button>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">快退/快进：
+      <select id="seekStep"></select>
+    </label>
+    <label style="flex:1">播放速度：
+      <select id="speed">
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="0.75">0.75×</option>
+        <option value="1" selected>1.0×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="1.75">1.75×</option>
+        <option value="2">2.0×</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="controls">
+    <button class="secondary" id="prev">上一句</button>
+    <button id="playCurrent">播放本句</button>
+    <button class="secondary" id="next">下一句</button>
+  </div>
+
+  <div class="small" style="text-align:center;margin-top:6px">播放本句会在本句结束时间自动暂停</div>
+</div>
+
+<div class="card">
+  <div class="row" style="align-items:center">
+    <b style="flex:1">3. 编辑字幕</b>
+    <button id="exportSrt">导出 SRT</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label>每次加减：
+      <select id="msStep"></select>
+      毫秒
+    </label>
+  </div>
+  <div id="list"></div>
+</div>
+</div>
+
+<script>
+let player=null;
+let ready=false;
+let subs=[];
+let current=0;
+let stopAtEnd=false;
+let timer=null;
+
+const $=s=>document.querySelector(s);
+const pad=(n,l=2)=>String(n).padStart(l,"0");
+
+for(let i=1;i<=10;i++){
+  const o=document.createElement("option"); o.value=i; o.textContent=i+" 秒";
+  if(i===5)o.selected=true; $("#seekStep").appendChild(o);
+}
+for(let i=1;i<=100;i++){
+  const o=document.createElement("option"); o.value=i; o.textContent=i;
+  if(i===10)o.selected=true; $("#msStep").appendChild(o);
+}
+
+function ytId(u){
+  try{
+    const x=new URL(u);
+    const h=x.hostname.replace(/^www\./,"");
+    if(h==="youtu.be") return x.pathname.split("/").filter(Boolean)[0]||null;
+    if(h.endsWith("youtube.com")){
+      if(x.pathname.startsWith("/shorts/")) return x.pathname.split("/")[2]||null;
+      return x.searchParams.get("v");
+    }
+  }catch(e){}
+  return /^[A-Za-z0-9_-]{11}$/.test(u.trim())?u.trim():null;
+}
+
+function loadAPI(){
+  return new Promise(resolve=>{
+    if(window.YT&&YT.Player){resolve();return}
+    window.onYouTubeIframeAPIReady=()=>resolve();
+    const s=document.createElement("script");
+    s.src="https://www.youtube.com/iframe_api";
+    document.head.appendChild(s);
+  });
+}
+
+$("#loadYt").onclick=async()=>{
+  const id=ytId($("#ytUrl").value.trim());
+  if(!id){alert("这不是有效的 YouTube 链接");return}
+  $("#ytStatus").textContent="正在加载…";
+  $("#ytHolder").innerHTML='<div class="ytbox"><div id="ytPlayer"></div></div>';
+  await loadAPI();
+
+  if(player && player.destroy) try{player.destroy()}catch(e){}
+  ready=false;
+
+  player=new YT.Player("ytPlayer",{
+    videoId:id,
+    playerVars:{playsinline:1,rel:0},
+    events:{
+      onReady:()=>{
+        ready=true;
+        $("#ytStatus").textContent="YouTube 已加载";
+        applySpeed();
+        if(timer)clearInterval(timer);
+        timer=setInterval(tick,100);
+      },
+      onStateChange:e=>{
+        $("#togglePlay").textContent=e.data===YT.PlayerState.PLAYING?"⏸ 暂停":"▶️ 播放";
+      },
+      onError:()=>{
+        $("#ytStatus").textContent="该视频无法嵌入播放";
+      }
+    }
+  });
+};
+
+function now(){return ready?Number(player.getCurrentTime())||0:0}
+function seek(t){if(ready)player.seekTo(Math.max(0,t),true)}
+function play(){if(ready)player.playVideo()}
+function pause(){if(ready)player.pauseVideo()}
+function playing(){return ready&&player.getPlayerState()===YT.PlayerState.PLAYING}
+
+function applySpeed(){
+  if(!ready)return;
+  const target=Number($("#speed").value)||1;
+  const rates=player.getAvailablePlaybackRates?player.getAvailablePlaybackRates():[];
+  if(rates&&rates.length){
+    const nearest=rates.reduce((a,b)=>Math.abs(b-target)<Math.abs(a-target)?b:a,rates[0]);
+    player.setPlaybackRate(nearest);
+  }
+}
+$("#speed").onchange=applySpeed;
+
+$("#rewind").onclick=()=>{stopAtEnd=false;seek(now()-(Number($("#seekStep").value)||5))}
+$("#forward").onclick=()=>{stopAtEnd=false;seek(now()+(Number($("#seekStep").value)||5))}
+$("#togglePlay").onclick=()=>{
+  stopAtEnd=false;
+  if(!ready)return;
+  if(playing())pause(); else play();
+};
+
+function parseTC(t){
+  const m=t.trim().match(/(?:(\d+):)?(\d+):(\d+)[,.](\d+)/);
+  if(!m)return 0;
+  const h=Number(m[1]||0),mi=Number(m[2]),s=Number(m[3]);
+  const ms=Number(String(m[4]).padEnd(3,"0").slice(0,3));
+  return h*3600+mi*60+s+ms/1000;
+}
+function fmt(sec){
+  let ms=Math.round(Math.max(0,sec||0)*1000);
+  const h=Math.floor(ms/3600000); ms-=h*3600000;
+  const m=Math.floor(ms/60000); ms-=m*60000;
+  const s=Math.floor(ms/1000); ms-=s*1000;
+  return `${pad(h)}:${pad(m)}:${pad(s)},${pad(ms,3)}`;
+}
+function parseSRT(t){
+  t=t.replace(/^\uFEFF/,"").replace(/\r/g,"").trim();
+  if(/^WEBVTT/i.test(t)){
+    t=t.replace(/^WEBVTT[^\n]*\n+/i,"")
+       .replace(/(\d{2}:\d{2}:\d{2})\.(\d{3})/g,"$1,$2")
+       .replace(/(\d{2}:\d{2})\.(\d{3})/g,"00:$1,$2");
+  }
+  return t.split(/\n\s*\n/).map(b=>{
+    const l=b.split("\n");
+    const i=l.findIndex(x=>x.includes("-->"));
+    if(i<0)return null;
+    const a=l[i].split("-->");
+    return {start:parseTC(a[0]),end:parseTC(a[1]),text:l.slice(i+1).join("\n")}
+  }).filter(Boolean);
+}
+
+$("#srtFile").onchange=async e=>{
+  const f=e.target.files&&e.target.files[0];
+  if(!f)return;
+  try{
+    const buf=await f.arrayBuffer();
+    let t=new TextDecoder("utf-8").decode(buf);
+    subs=parseSRT(t);
+    if(!subs.length){alert("没有识别到字幕");return}
+    current=0;
+    $("#subStatus").textContent=`已导入 ${subs.length} 条：${f.name}`;
+    render();
+    e.target.value="";
+  }catch(err){
+    alert("字幕读取失败");
+  }
+};
+
+$("#addSub").onclick=()=>{
+  const st=ready?now():0;
+  subs.push({start:st,end:st+2,text:""});
+  current=subs.length-1;
+  render();
+};
+
+function updateCurrentOnly(scrollIntoView=false){
+  $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
+  $("#currentSubtitle").textContent=subs[current]?.text||"字幕会显示在这里";
+
+  document.querySelectorAll("#list .item").forEach((el,i)=>{
+    el.classList.toggle("active", i===current);
+  });
+
+  if(scrollIntoView){
+    const el=document.querySelector(`#list .item:nth-child(${current+1})`);
+    if(el) el.scrollIntoView({block:"nearest",behavior:"auto"});
+  }
+}
+
+function render(){
+  $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
+  $("#currentSubtitle").textContent=subs[current]?.text||"字幕会显示在这里";
+
+  $("#list").innerHTML=subs.map((s,i)=>`
+  <div class="item ${i===current?'active':''}">
+    <div class="grid">
+      <div>
+        <div class="small">开始时间</div>
+        <input class="timeinput" data-time="start" data-i="${i}" value="${fmt(s.start)}">
+        <div class="timebox" style="margin-top:6px">
+          <button onclick="adj(${i},'start',-1)">－</button>
+          <div class="small" style="text-align:center">毫秒</div>
+          <button onclick="adj(${i},'start',1)">＋</button>
+        </div>
+      </div>
+      <div>
+        <div class="small">结束时间</div>
+        <input class="timeinput" data-time="end" data-i="${i}" value="${fmt(s.end)}">
+        <div class="timebox" style="margin-top:6px">
+          <button onclick="adj(${i},'end',-1)">－</button>
+          <div class="small" style="text-align:center">毫秒</div>
+          <button onclick="adj(${i},'end',1)">＋</button>
+        </div>
+      </div>
+      <textarea data-text="${i}">${s.text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</textarea>
+    </div>
+    <div class="controls">
+      <button class="secondary" onclick="gotoSub(${i})">定位</button>
+      <button class="secondary" onclick="delSub(${i})">删除</button>
+    </div>
+  </div>`).join("");
+
+  document.querySelectorAll("[data-text]").forEach(el=>{
+    el.oninput=()=>{const i=Number(el.dataset.text);subs[i].text=el.value;if(i===current)$("#currentSubtitle").textContent=el.value}
+  });
+  document.querySelectorAll("[data-time]").forEach(el=>{
+    el.onchange=()=>{
+      const i=Number(el.dataset.i),f=el.dataset.time;
+      const v=parseTC(el.value);
+      subs[i][f]=v;el.value=fmt(v);
+    }
+  });
+}
+
+window.adj=(i,f,dir)=>{
+  const step=(Number($("#msStep").value)||10)/1000;
+  subs[i][f]=Math.max(0,Math.round((subs[i][f]+dir*step)*1000)/1000);
+  current=i;render();
+};
+window.gotoSub=i=>{
+  current=i;
+  stopAtEnd=false;
+  updateCurrentOnly(false);
+  seek(subs[i].start);
+};
+window.delSub=i=>{subs.splice(i,1);current=Math.min(current,Math.max(0,subs.length-1));render()};
+
+$("#prev").onclick=()=>{
+  if(!subs.length)return;
+  stopAtEnd=false;
+  current=Math.max(0,current-1);
+  updateCurrentOnly(false);
+  seek(subs[current].start);
+};
+$("#next").onclick=()=>{
+  if(!subs.length)return;
+  stopAtEnd=false;
+  current=Math.min(subs.length-1,current+1);
+  updateCurrentOnly(false);
+  seek(subs[current].start);
+};
+$("#playCurrent").onclick=()=>{
+  if(!ready||!subs.length)return;
+  stopAtEnd=true;
+  seek(subs[current].start);
+  play();
+};
+
+function tick(){
+  if(!ready||!subs.length)return;
+  const t=now();
+
+  if(stopAtEnd&&t>=subs[current].end){
+    pause();
+    seek(subs[current].end);
+    stopAtEnd=false;
+    return;
+  }
+
+  if(!stopAtEnd){
+    const i=subs.findIndex(s=>t>=s.start&&t<=s.end);
+    if(i>=0&&i!==current){
+      current=i;
+      updateCurrentOnly(false);
+    }
+  }
+}
+
+$("#exportSrt").onclick=()=>{
+  if(!subs.length){alert("没有字幕");return}
+  const text=subs.map((s,i)=>`${i+1}\n${fmt(s.start)} --> ${fmt(s.end)}\n${s.text.trim()}\n`).join("\n");
+  const blob=new Blob([text],{type:"application/x-subrip;charset=utf-8"});
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=u;a.download="修改后的字幕.srt";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),1000);
+};
+
+render();
+</script>
+</body>
+</html>
