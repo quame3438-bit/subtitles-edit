@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="收支本">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>收支本 - 统一照片重做版</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:640px;margin:auto;padding:calc(16px + env(safe-area-inset-top)) 12px calc(90px + env(safe-area-inset-bottom))}
+h1{font-size:26px;margin:8px 0 16px}
+.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 2px 12px #0000000d}
+.label{font-size:13px;color:#777}.num{font-size:23px;font-weight:750;margin-top:5px}
+input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:15px;background:#fff}
+button{border:0;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer}
+.dark{background:#111;color:#fff;padding:12px 14px}.light{background:#ececec;color:#222;padding:10px 12px}
+.top{display:flex;gap:8px}.top input{flex:1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.title{display:flex;justify-content:space-between;align-items:center;font-size:19px;font-weight:750;margin-bottom:10px}
+.add{width:40px;height:40px;border-radius:50%;font-size:27px;line-height:38px;background:#111;color:#fff;padding:0}
+.ledger{border:1px solid #e7e7e7;border-radius:15px;padding:12px;margin-top:12px;background:#fafafa}
+.ledger-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.ledger-stat{background:#fff;border:1px solid #ececec;border-radius:12px;padding:10px}
+.ledger-stat .label{font-size:12px}
+.ledger-stat .num{font-size:18px}
+.ledger-namebar{display:flex;gap:8px;align-items:center}
+.ledger-namebar input{flex:1}
+.ledger-head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.item{display:grid;grid-template-columns:1fr 105px auto;gap:7px;margin-top:8px}
+.item button{padding:0 10px;background:#eee}
+.ledger-actions{display:flex;gap:8px;margin-top:10px}
+.ledger-actions button{flex:1}
+.saved{font-size:12px;color:#777;margin-top:7px}
+.hint{font-size:12px;color:#888;margin-top:7px}
+.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.calendar-head button{padding:8px 11px;background:#eee}
+.week,.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.week div{text-align:center;font-size:12px;color:#888;padding:4px}
+.day{aspect-ratio:1/1;border:0;border-radius:10px;background:#f2f2f2;position:relative;font-size:14px}
+.day.has{background:#111;color:#fff}.day.today{outline:2px solid #888}.day.blank{visibility:hidden}
+.dot{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:currentColor}
+.summary{margin-top:12px;border-top:1px solid #eee;padding-top:12px}
+.sum-ledger{padding:12px;margin:10px 0;border:1px solid #e6e6e6;border-radius:12px;background:#fafafa}
+.sum-title{font-weight:800;font-size:16px;margin-bottom:6px}
+.sum-item{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;border-bottom:1px dashed #e3e3e3}
+.sum-item:last-of-type{border-bottom:0}
+.sum-total{font-weight:800;margin-top:8px}
+.day-grand{margin-top:12px;padding-top:12px;border-top:2px solid #222;font-size:16px;font-weight:800}
+.day-balance{margin-top:6px;font-size:16px;font-weight:800}
+.day-balance-highlight{margin-top:10px;padding:12px;border:2px solid #111;border-radius:12px;background:#fff;font-size:22px;font-weight:900;text-align:center}
+.summary-font-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;padding:9px 10px;background:#f5f5f7;border-radius:11px}
+.summary-font-controls button{min-width:46px;padding:8px 10px;background:#e8e8ea}
+#daySummary{font-size:var(--summary-font-size,14px)}
+#daySummary .sum-title{font-size:calc(var(--summary-font-size,14px) + 2px)}
+#daySummary .sum-item{font-size:var(--summary-font-size,14px)}
+#daySummary .sum-total{font-size:var(--summary-font-size,14px)}
+.empty{text-align:center;color:#aaa;padding:18px 0}
+.photo-wrap{margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.photo-btn{display:inline-block;background:#ececec;color:#222;border-radius:10px;padding:9px 11px;font-size:13px;font-weight:700;cursor:pointer}
+.photo-input{display:none}
+.photo-preview{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid #ddd}
+.photo-remove{padding:8px 10px;background:#eee;color:#333}
+.sum-photo{width:68px;height:68px;object-fit:cover;border-radius:9px;border:1px solid #ddd;margin-top:6px}
+@media(max-width:420px){.item{grid-template-columns:1fr 85px auto}.item input{font-size:14px}}
+.cloud-status{font-size:12px;color:#777;margin-top:7px}
+.cloud-ok{color:#197a35}.cloud-warn{color:#a05a00}
+.auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.auth-actions{display:flex;gap:8px;margin-top:8px}.auth-actions button{flex:1}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+</head>
+<body>
+<div class="wrap">
+<h1>收支本</h1>
+<div class="card">
+  <div class="title"><span>备份与恢复</span></div>
+  <div class="grid">
+    <button class="dark" onclick="exportBackup()">导出备份</button>
+    <button class="light" onclick="document.getElementById('importBackupFile').click()">导入备份</button>
+  </div>
+  <input id="importBackupFile" type="file" accept=".json" style="display:none" onchange="importBackup(this)">
+  <div class="hint">数据保存在本机。建议定期导出备份文件。</div>
+</div>
+
+
+<div class="card">
+  <div class="label">记账日期</div>
+  <div class="top" style="margin-top:7px">
+    <input id="recordDate" type="date">
+    <button class="dark" onclick="goToday()">今天</button>
+  </div>
+  <div class="hint">可选择任意日期添加、保存和修改账单。</div>
+</div>
+
+
+<div class="card">
+  <div class="title">
+    <span>账本名称</span>
+    <button class="add" onclick="addLedger()">＋</button>
+  </div>
+  <div class="hint">每个账本按顺序记录：总收入、总余额、当日支出、当日余额。</div>
+  <div id="ledgers"></div>
+</div>
+
+<div class="card">
+  <div class="title">
+    <span>汇总账单</span>
+  </div>
+  <div class="grid" style="margin-bottom:12px">
+    <button class="dark" onclick="exportExcelWithPhotos()">照片嵌入 Excel</button>
+    <button class="dark" onclick="exportZipWithPhotos()">Excel＋照片 ZIP</button>
+  </div>
+  <div class="summary-font-controls">
+    <span>账单显示字号：<strong id="summaryFontLabel">14</strong></span>
+    <div style="display:flex;gap:6px">
+      <button onclick="changeSummaryFont(-1)">A－</button>
+      <button onclick="changeSummaryFont(1)">A＋</button>
+    </div>
+  </div>
+  <div class="calendar-head">
+    <button onclick="changeMonth(-1)">‹</button>
+    <strong id="monthTitle"></strong>
+    <button onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="week">
+    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+  </div>
+  <div id="calendar" class="cal"></div>
+  <div id="daySummary" class="summary"></div>
+</div>
+</div>
+
+<script>
+
+
+function exportBackup(){
+  const data={income,balance,allData,exportTime:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  saveAs(blob,'收支本备份.json');
+}
+
+function importBackup(input){
+  const file=input.files && input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const d=JSON.parse(reader.result);
+      income=Number(d.income||0);
+      balance=Number(d.balance||0);
+      allData=d.allData||{};
+      localStorage.setItem(KI,String(income));
+      localStorage.setItem(KB,String(balance));
+      localStorage.setItem(KD,JSON.stringify(allData));
+      render();
+      alert('恢复成功');
+    }catch(e){
+      alert('备份文件格式错误');
+    }
+  };
+  reader.readAsText(file);
+}
+
+const KI='multi_income_v1', KB='multi_balance_v1', KD='multi_ledger_data_v1', KF='summary_font_size_v1';
+let income=Number(localStorage.getItem(KI)||0);
+let balance=Number(localStorage.getItem(KB)||0);
+let allData=JSON.parse(localStorage.getItem(KD)||'{}');
+let viewDate=new Date();
+let summaryFontSize=Math.min(24,Math.max(12,Number(localStorage.getItem(KF)||14)));
+
+function applySummaryFont(){
+  document.documentElement.style.setProperty('--summary-font-size',summaryFontSize+'px');
+  const label=document.querySelector('#summaryFontLabel');
+  if(label) label.textContent=summaryFontSize;
+}
+function changeSummaryFont(delta){
+  summaryFontSize=Math.min(24,Math.max(12,summaryFontSize+delta));
+  localStorage.setItem(KF,String(summaryFontSize));
+  applySummaryFont();
+}
+
+const money=n=>'¥'+Number(n||0).toFixed(2);
+const keyOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const realTodayKey=keyOf(new Date());
+let selectedKey=realTodayKey;
+
+function setSelectedDate(k){
+  selectedKey=k;
+  const d=document.querySelector('#recordDate');
+  if(d) d.value=k;
+  viewDate=new Date(k+'T00:00:00');
+  render();
+}
+function goToday(){
+  setSelectedDate(realTodayKey);
+}
+function ensureToday(){
+  if(!allData[selectedKey]) allData[selectedKey]=[];
+}
+function persist(){localStorage.setItem(KD,JSON.stringify(allData));}
+function saveIncome(){
+  let v=Number(document.querySelector('#income').value);
+  if(!Number.isFinite(v)||v<0)return alert('请输入正确的总收入');
+  income=v;localStorage.setItem(KI,String(v));render();
+}
+function saveBalance(){
+  let v=Number(document.querySelector('#balance').value);
+  if(!Number.isFinite(v))return alert('请输入正确的总余额');
+  balance=v;localStorage.setItem(KB,String(v));render();
+}
+function previousLedgerFor(dateKey,index,name){
+  const keys=Object.keys(allData).filter(k=>k<dateKey && (allData[k]||[]).length).sort().reverse();
+  for(const k of keys){
+    const arr=allData[k]||[];
+    let prev=null;
+    if(name) prev=arr.find(x=>String(x.name||'').trim()===String(name).trim());
+    if(!prev) prev=arr[index];
+    if(prev) return prev;
+  }
+  return null;
+}
+function defaultsForNewLedger(dateKey,index,name){
+  const prev=previousLedgerFor(dateKey,index,name);
+  if(prev){
+    const spent=(prev.items||[]).reduce((s,i)=>s+(Number(i.amount)||0),0);
+    return {
+      income:Number(prev.income)||0,
+      balance:(Number(prev.balance)||0)-spent
+    };
+  }
+  return {income:income||0,balance:balance||0};
+}
+function addLedger(){
+  ensureToday();
+  const index=allData[selectedKey].length;
+  const name=index===0?'单位':'';
+  const d=defaultsForNewLedger(selectedKey,index,name);
+  allData[selectedKey].push({id:Date.now()+Math.floor(Math.random()*999),name,income:d.income,balance:d.balance,items:[],receiptPhotos:[],savedAt:null});
+  persist();render();
+}
+function updateLedgerField(id,field,value){
+  const l=allData[selectedKey].find(x=>x.id===id); if(!l)return;
+
+  // 允许连续输入：空值、负号、小数点等中间状态不触发刷新
+  if(value==='' || value==='-' || value==='.' || value==='-.'){
+    l[field]=value;
+    persist();
+    return;
+  }
+
+  const n=Number(value);
+  if(!Number.isFinite(n)) return;
+
+  l[field]=n;
+  persist();
+}
+function renameLedger(id,v){
+  const l=allData[selectedKey].find(x=>x.id===id); if(!l)return;
+  l.name=v; persist();
+}
+function addItem(id){
+  const l=allData[selectedKey].find(x=>x.id===id); if(!l)return;
+  l.items.push({id:Date.now()+Math.floor(Math.random()*999),category:'',amount:''});
+  persist();render();
+}
+function updateItem(lid,iid,k,v){
+  const l=allData[selectedKey].find(x=>x.id===lid); if(!l)return;
+  const it=l.items.find(x=>x.id===iid); if(!it)return;
+  it[k]=v; persist();renderTotals();
+}
+
+function readPhoto(lid,iid,input){
+  const file=input.files && input.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){
+    alert('请选择图片文件');
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=1200;
+      let w=img.width,h=img.height;
+      if(w>max || h>max){
+        const scale=Math.min(max/w,max/h);
+        w=Math.round(w*scale); h=Math.round(h*scale);
+      }
+      const c=document.createElement('canvas');
+      c.width=w; c.height=h;
+      const ctx=c.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      const data=c.toDataURL('image/jpeg',0.78);
+
+      const l=allData[selectedKey].find(x=>x.id===lid); if(!l)return;
+      const it=l.items.find(x=>x.id===iid); if(!it)return;
+      it.photo=data;
+      persist();
+      renderLedgers();
+    };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removePhoto(lid,iid){
+  const l=allData[selectedKey].find(x=>x.id===lid); if(!l)return;
+  const it=l.items.find(x=>x.id===iid); if(!it)return;
+  it.photo='';
+  persist();
+  renderLedgers();
+}
+
+function compressLedgerPhoto(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('照片读取失败'));
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('照片格式不支持'));
+      img.onload=()=>{
+        const max=1200;
+        let w=img.width,h=img.height;
+        if(w>max || h>max){
+          const scale=Math.min(max/w,max/h);
+          w=Math.round(w*scale); h=Math.round(h*scale);
+        }
+        const c=document.createElement('canvas');
+        c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(c.toDataURL('image/jpeg',0.78));
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readLedgerPhotos(lid,input){
+  const files=Array.from(input.files||[]);
+  if(!files.length)return;
+  if(files.some(file=>!file.type.startsWith('image/'))){
+    alert('请选择图片文件'); input.value=''; return;
+  }
+  const l=allData[selectedKey].find(x=>x.id===lid); if(!l)return;
+  if(!Array.isArray(l.receiptPhotos)) l.receiptPhotos=[];
+  try{
+    for(const file of files) l.receiptPhotos.push(await compressLedgerPhoto(file));
+    persist(); renderLedgers();
+  }catch(e){
+    alert(e.message||'照片读取失败');
+  }
+  input.value='';
+}
+
+function removeLedgerPhoto(lid,index){
+  const l=allData[selectedKey].find(x=>x.id===lid); if(!l)return;
+  if(!Array.isArray(l.receiptPhotos)) l.receiptPhotos=[];
+  l.receiptPhotos.splice(index,1);
+  persist(); renderLedgers();
+}
+
+function deleteItem(lid,iid){
+  const l=allData[selectedKey].find(x=>x.id===lid); if(!l)return;
+  l.items=l.items.filter(x=>x.id!==iid); persist();render();
+}
+function deleteLedger(id){
+  if(!confirm('删除这个账本吗？'))return;
+  allData[selectedKey]=allData[selectedKey].filter(x=>x.id!==id); persist();render();
+}
+function uploadSave(id){
+  const l=allData[selectedKey].find(x=>x.id===id); if(!l)return;
+  l.savedAt=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+  persist();render();
+}
+function editLedger(id){
+  const l=allData[selectedKey].find(x=>x.id===id); if(!l)return;
+  l.savedAt=null; persist();render();
+}
+function totalForDate(k){
+  return (allData[k]||[]).reduce((s,l)=>s+l.items.reduce((a,i)=>a+(Number(i.amount)||0),0),0);
+}
+function renderTotals(){
+  renderCalendar();
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function renderLedgers(){
+  ensureToday();
+  const box=document.querySelector('#ledgers');
+  const ls=allData[selectedKey];
+
+  if(!ls.length){
+    box.innerHTML='<div class="empty">点右上角“＋”新建账本</div>';
+    return;
+  }
+
+  // 兼容此前已经保存的账本：首次打开时继承旧的总收入/总余额
+  ls.forEach(l=>{
+    if(typeof l.income==='undefined') l.income=income||0;
+    if(typeof l.balance==='undefined') l.balance=balance||0;
+    if(!Array.isArray(l.receiptPhotos)) l.receiptPhotos=[];
+    if(l.receiptPhoto && !l.receiptPhotos.includes(l.receiptPhoto)){
+      l.receiptPhotos.unshift(l.receiptPhoto);
+    }
+    delete l.receiptPhoto;
+    if(!l.receiptPhotos.length){
+      const oldPhotoItem=(l.items||[]).find(i=>i && i.photo);
+      if(oldPhotoItem) l.receiptPhotos.push(oldPhotoItem.photo);
+    }
+  });
+  persist();
+
+  box.innerHTML=ls.map(l=>{
+    const spent=l.items.reduce((s,i)=>s+(Number(i.amount)||0),0);
+    const left=(Number(l.balance)||0)-spent;
+
+    return `
+    <div class="ledger">
+      <div class="ledger-namebar">
+        <input value="${esc(l.name)}" ${l.savedAt?'disabled':''}
+          oninput="renameLedger(${l.id},this.value)">
+        <button class="light" onclick="deleteLedger(${l.id})">删除</button>
+      </div>
+
+      <div class="ledger-stats">
+        <div class="ledger-stat">
+          <div class="label">总收入</div>
+          <input type="number" inputmode="decimal" placeholder="填写总收入"
+            value="${Number(l.income)===0?'':Number(l.income)}"
+            ${l.savedAt?'disabled':''}
+            oninput="updateLedgerField(${l.id},'income',this.value)"
+            onblur="renderLedgers()">
+        </div>
+
+        <div class="ledger-stat">
+          <div class="label">总余额</div>
+          <input type="number" inputmode="decimal" placeholder="可填写负数"
+            value="${Number(l.balance)===0?'':Number(l.balance)}"
+            ${l.savedAt?'disabled':''}
+            oninput="updateLedgerField(${l.id},'balance',this.value)"
+            onblur="renderLedgers()">
+        </div>
+
+        <div class="ledger-stat">
+          <div class="label">当日支出</div>
+          <div class="num">${money(spent)}</div>
+        </div>
+
+        <div class="ledger-stat" style="grid-column:1 / -1;border:2px solid #111">
+          <div class="label" style="font-size:14px;font-weight:800;color:#333">当日余额</div>
+          <div class="num" style="font-size:28px;font-weight:900">${money(left)}</div>
+        </div>
+      </div>
+
+      <div style="font-weight:700;margin-top:12px">消费明细</div>
+      <div>
+        ${l.items.map(i=>`
+          <div class="item">
+            <input placeholder="类别/明细" value="${esc(i.category)}" ${l.savedAt?'disabled':''}
+              oninput="updateItem(${l.id},${i.id},'category',this.value)">
+            <input type="number" inputmode="decimal" placeholder="金额" value="${esc(i.amount)}" ${l.savedAt?'disabled':''}
+              oninput="updateItem(${l.id},${i.id},'amount',this.value)">
+            <button ${l.savedAt?'disabled':''} onclick="deleteItem(${l.id},${i.id})">删</button>
+          </div>
+`).join('')}
+      </div>
+
+      ${l.savedAt?'':`<button class="light" style="width:100%;margin-top:9px" onclick="addItem(${l.id})">＋ 添加消费明细</button>`}
+
+      <div style="font-weight:700;margin-top:14px">消费照片</div>
+      <div class="photo-wrap">
+        ${l.receiptPhotos.map((photo,index)=>`
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:center">
+            <img class="photo-preview" src="${photo}" alt="消费凭证${index+1}">
+            ${l.savedAt?'':`<button class="photo-remove" onclick="removeLedgerPhoto(${l.id},${index})">删除</button>`}
+          </div>
+        `).join('')}
+        ${l.savedAt
+          ? (l.receiptPhotos.length?`<span class="hint">已上传 ${l.receiptPhotos.length} 张照片</span>`:'<span class="hint">无照片</span>')
+          : `<label class="photo-btn">＋ 添加照片<input class="photo-input" type="file" accept="image/*" multiple onchange="readLedgerPhotos(${l.id},this)"></label>`}
+      </div>
+
+      <div class="ledger-actions">
+        ${l.savedAt
+          ? `<button class="light" onclick="editLedger(${l.id})">修改</button><button class="dark" disabled>已保存</button>`
+          : `<button class="dark" onclick="uploadSave(${l.id})">上传保存</button>`}
+      </div>
+      ${l.savedAt?`<div class="saved">已保存：${l.savedAt}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderCalendar(){
+  const y=viewDate.getFullYear(), m=viewDate.getMonth();
+  document.querySelector('#monthTitle').textContent=`${y}年${m+1}月`;
+  const first=new Date(y,m,1), last=new Date(y,m+1,0), arr=[];
+  for(let i=0;i<first.getDay();i++) arr.push('<button class="day blank"></button>');
+  for(let d=1;d<=last.getDate();d++){
+    const dt=new Date(y,m,d), k=keyOf(dt), has=(allData[k]||[]).length>0, isToday=k===realTodayKey;
+    arr.push(`<button class="day ${has?'has':''} ${isToday?'today':''}" onclick="showDay('${k}')">${d}${has?'<span class="dot"></span>':''}</button>`);
+  }
+  document.querySelector('#calendar').innerHTML=arr.join('');
+}
+function changeMonth(n){viewDate=new Date(viewDate.getFullYear(),viewDate.getMonth()+n,1);renderCalendar();document.querySelector('#daySummary').innerHTML=''}
+function showDay(k){
+  selectedKey=k;
+  const d=document.querySelector('#recordDate');
+  if(d) d.value=k;
+
+  renderLedgers();
+  renderTotals();
+
+  const box=document.querySelector('#daySummary');
+  const ls=allData[k]||[];
+
+  if(!ls.length){
+    box.innerHTML=`<strong>${k}</strong><div class="empty">当天没有账单，可在上方直接添加。</div>`;
+    return;
+  }
+
+  const grouped = ls.map((l,ledgerIndex)=>{
+    const ledgerTotal=l.items.reduce((s,i)=>s+(Number(i.amount)||0),0);
+    const ledgerBase=(typeof l.balance==='undefined' ? (balance||0) : (Number(l.balance)||0));
+    const ledgerBalance=ledgerBase-ledgerTotal;
+
+    const details = l.items.length
+      ? l.items.map((i,itemIndex)=>`
+          <div class="sum-item">
+            <span>${itemIndex+1}. ${esc(i.category || '未填写明细')}</span>
+            <span>${money(i.amount)}</span>
+          </div>
+        `).join('')
+      : '<div class="hint">这个账本暂无消费明细</div>';
+
+    return `
+      <div class="sum-ledger">
+        <div class="sum-title">账本 ${ledgerIndex+1}：${esc(l.name || '未命名账本')}</div>
+        ${details}
+        <div>${(l.receiptPhotos||[]).map((photo,index)=>`<img class="sum-photo" src="${photo}" alt="消费凭证${index+1}">`).join('')}</div>
+        <div class="sum-total">总收入：${money(typeof l.income==='undefined' ? 0 : l.income)}</div>
+        <div class="sum-total">总余额：${money(ledgerBase)}</div>
+        <div class="sum-total">小计：${money(ledgerTotal)}</div>
+        <div class="day-balance-highlight">当日余额：${money(ledgerBalance)}</div>
+      </div>
+    `;
+  }).join('');
+
+  box.innerHTML=
+    `<strong>${k}</strong>`
+    + grouped;
+}
+
+function dataUrlInfo(dataUrl){
+  if(!dataUrl || !dataUrl.startsWith('data:image/')) return null;
+  const m=dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+  if(!m) return null;
+  let ext=m[1].toLowerCase();
+  if(ext==='jpg') ext='jpeg';
+  return {extension:ext, base64:m[2]};
+}
+
+function safeName(s){
+  return String(s||'').trim().replace(/[\\/:*?"<>|]+/g,'_').replace(/\s+/g,'_').slice(0,60) || '未命名';
+}
+
+function collectRows(){
+  const out=[];
+  Object.keys(allData).sort().forEach(k=>{
+    const ledgers=allData[k]||[];
+
+    ledgers.forEach(l=>{
+      const ledgerBalance = (typeof l.balance==='undefined' ? 0 : (Number(l.balance)||0));
+      const ledgerSubtotal = l.items.reduce((s,i)=>s+(Number(i.amount)||0),0);
+      const ledgerDayBalance = ledgerBalance - ledgerSubtotal;
+
+      if(!l.items.length){
+        out.push({
+          date:k,
+          ledger:l.name||'',
+          category:'',
+          amount:0,
+          ledgerIncome:Number(l.income)||0,
+          ledgerBalance,
+          ledgerSubtotal,
+          ledgerDayBalance,
+          photos:Array.isArray(l.receiptPhotos)?l.receiptPhotos:[]
+        });
+      }else{
+        l.items.forEach(i=>{
+          out.push({
+            date:k,
+            ledger:l.name||'',
+            category:i.category||'',
+            amount:Number(i.amount)||0,
+            ledgerIncome:Number(l.income)||0,
+            ledgerBalance,
+            ledgerSubtotal,
+            ledgerDayBalance,
+            photos:Array.isArray(l.receiptPhotos)?l.receiptPhotos:[]
+          });
+        });
+      }
+    });
+  });
+  return out;
+}
+
+async function buildWorkbook(includePhotos){
+  if(typeof ExcelJS==='undefined') throw new Error('Excel 组件未加载');
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('汇总账单');
+  ws.columns=[
+    {header:'日期',key:'date',width:14},
+    {header:'账本名称',key:'ledger',width:20},
+    {header:'消费类别/明细',key:'category',width:28},
+    {header:'金额',key:'amount',width:14},
+    {header:'总收入',key:'ledgerIncome',width:14},
+    {header:'总余额',key:'ledgerBalance',width:14},
+    {header:'小计',key:'ledgerSubtotal',width:14},
+    {header:'当日余额',key:'ledgerDayBalance',width:14},
+    {header:'照片',key:'photo',width:18}
+  ];
+  ws.getRow(1).font={bold:true};
+  ws.getRow(1).height=24;
+
+  const rows=collectRows();
+  rows.forEach((r,idx)=>{
+    const row=ws.addRow({
+      date:r.date,
+      ledger:r.ledger,
+      category:r.category,
+      amount:r.amount,
+      ledgerIncome:r.ledgerIncome,
+      ledgerBalance:r.ledgerBalance,
+      ledgerSubtotal:r.ledgerSubtotal,
+      ledgerDayBalance:r.ledgerDayBalance,
+      photo:r.photos.length?`${r.photos.length}张照片`:''
+    });
+    row.getCell(4).numFmt='0.00';
+    row.getCell(5).numFmt='0.00';
+    row.getCell(6).numFmt='0.00';
+    row.getCell(7).numFmt='0.00';
+    row.getCell(8).numFmt='0.00';
+
+    if(includePhotos && r.photos.length){
+      const excelRow=idx+2;
+      let added=0;
+      r.photos.forEach(photo=>{
+        const info=dataUrlInfo(photo);
+        if(!info || (info.extension!=='png' && info.extension!=='jpeg')) return;
+        try{
+          const imageId=wb.addImage({base64:info.base64,extension:info.extension});
+          ws.addImage(imageId,{
+            tl:{col:8.08+(added*0.82),row:excelRow-1+0.08},
+            ext:{width:72,height:72}
+          });
+          added++;
+        }catch(e){}
+      });
+      if(added){
+        ws.getColumn(9).width=Math.max(ws.getColumn(9).width,Math.min(18*added,72));
+        row.height=60;
+        row.getCell(9).value='';
+      }
+    }
+  });
+
+  ws.views=[{state:'frozen',ySplit:1}];
+  return wb;
+}
+
+async function exportExcelWithPhotos(){
+  try{
+    const wb=await buildWorkbook(true);
+    const buf=await wb.xlsx.writeBuffer();
+    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
+      `收支汇总_照片嵌入_${selectedKey}.xlsx`);
+  }catch(e){
+    alert('导出失败：'+e.message);
+  }
+}
+
+async function exportZipWithPhotos(){
+  try{
+    if(typeof JSZip==='undefined') throw new Error('ZIP 组件未加载');
+
+    const zip=new JSZip();
+    const wb=await buildWorkbook(false);
+    const xlsxBuf=await wb.xlsx.writeBuffer();
+    zip.file(`收支汇总_${selectedKey}.xlsx`,xlsxBuf);
+
+    let photoNo=1;
+    Object.keys(allData).sort().forEach(date=>{
+      (allData[date]||[]).forEach(l=>{
+        (Array.isArray(l.receiptPhotos)?l.receiptPhotos:[]).forEach((photo,index)=>{
+          const info=dataUrlInfo(photo);
+          if(!info) return;
+          const ext=info.extension==='jpeg'?'jpg':info.extension;
+          const filename=
+            `${String(photoNo).padStart(3,'0')}_${safeName(l.name)}_照片${index+1}.${ext}`;
+          zip.folder(`照片/${date}`).file(filename,info.base64,{base64:true});
+          photoNo++;
+        });
+      });
+    });
+
+    const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    saveAs(blob,`收支汇总_Excel加照片_${selectedKey}.zip`);
+  }catch(e){
+    alert('导出失败：'+e.message);
+  }
+}
+
+function render(){
+  document.querySelector('#recordDate').value=selectedKey;
+  applySummaryFont();
+  renderLedgers();renderTotals();renderCalendar();
+}
+document.querySelector('#recordDate').addEventListener('change',e=>{
+  if(e.target.value) setSelectedDate(e.target.value);
+});
+render();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>
