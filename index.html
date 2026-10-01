@@ -141,6 +141,15 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
  .cloud-grid{grid-template-columns:1fr}
  .cloud-grid .wide{grid-column:auto}
 }
+
+/* 2026-10-01 页面布局调整：只加高“时间字幕播放”的6个按钮 */
+#timeSubtitlePlayCard > .collapsible-content > .controls button,
+#timeSubtitlePlayCard > .controls button{
+  min-height:88px !important;
+  padding-top:22px !important;
+  padding-bottom:22px !important;
+}
+
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
@@ -292,11 +301,25 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <div id="currentSubtitle" class="subtitle">字幕会显示在这里</div>
   </div>
   <div id="currentMeta" class="small" style="text-align:center">0 / 0</div>
-  <div class="controls"><button class="secondary" id="copyCurrentSubtitle" type="button">复制</button></div>
-  <div id="subtitleCopyStatus" class="small" role="status"></div>
+  <div class="controls"></div>
+</div>
+
+<div class="card" id="timeSubtitlePlayCard">
+  <b>时间字幕播放</b>
+  <div class="controls" style="margin-top:0">
+    <button class="secondary needsPlayer" id="prev">上一句</button>
+    <button class="needsPlayer" id="playCurrent">继续本句</button>
+    <button class="secondary needsPlayer" id="next">下一句</button>
+  </div>
+  <div class="controls">
+    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
+    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
+    <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
+  </div>
 </div>
 
 <div class="card">
+  <b>播放设置</b>
   <div class="play-settings-grid">
     <div class="play-setting-item">
       <span class="play-setting-title">快退</span>
@@ -316,6 +339,50 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     </div>
   </div>
 </div>
+
+<div class="card" id="sentencePlaySettingCard">
+  <b>播放模式设置</b>
+  <div class="sentence-play-settings">
+    <label>播放模式
+      <select id="sentenceAutoMode">
+        <option value="single">本句播放</option>
+        <option value="continuous">连续播放</option>
+      </select>
+    </label>
+    <label>播放间隔
+      <select id="sentenceAutoInterval"></select>
+    </label>
+    <label>播放次数
+      <select id="sentencePlayTimes"></select>
+    </label>
+  </div>
+  <div id="sentenceStatus" class="status">本句播放 · 1遍：播放1遍后停止</div>
+</div>
+
+<div class="card" id="startEndSettingCard">
+  <b>开始结束设定</b>
+  <div class="controls">
+    <button class="secondary needsPlayer" id="markCueStart">设为开始点</button>
+    <button class="secondary needsPlayer" id="markCueEnd">设为结束点</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1;min-width:0">开始时间<input id="newCueStart" type="text" placeholder="00:00:00.000"></label>
+    <label style="flex:1;min-width:0">结束时间<input id="newCueEnd" type="text" placeholder="00:00:00.000"></label>
+  </div>
+  <textarea id="newCueText" rows="3" placeholder="填写此句字幕" aria-label="此句字幕" style="width:100%;margin-top:10px"></textarea>
+  <div class="controls"><button id="insertNewCue">添加此句</button></div>
+  <div id="newCueStatus" class="status" role="status"></div>
+</div>
+
+
+
+
+
+
+
+
+
+
 
 <div class="card">
   <b>自定义视频分段</b>
@@ -413,45 +480,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   </div>
   <div id="vocabStatus" class="status">内容会自动保存在本机</div>
   <div id="vocabList" class="vocab-list"></div>
-</div>
-
-<div class="card">
-  <div class="controls" style="margin-top:0">
-    <button class="secondary needsPlayer" id="prev">上一句</button>
-    <button class="needsPlayer" id="playCurrent">播放本句</button>
-    <button class="secondary needsPlayer" id="next">下一句</button>
-  </div>
-  <div class="controls">
-    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
-    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
-    <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
-  </div>
-  <div class="controls">
-    <button class="secondary needsPlayer" id="markCueStart">设为开始点</button>
-    <button class="secondary needsPlayer" id="markCueEnd">设为结束点</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1;min-width:0">开始时间<input id="newCueStart" type="text" placeholder="00:00:00.000"></label>
-    <label style="flex:1;min-width:0">结束时间<input id="newCueEnd" type="text" placeholder="00:00:00.000"></label>
-  </div>
-  <textarea id="newCueText" rows="3" placeholder="填写此句字幕" aria-label="此句字幕" style="width:100%;margin-top:10px"></textarea>
-  <div class="controls"><button id="insertNewCue">添加此句</button></div>
-  <div id="newCueStatus" class="status" role="status"></div>
-  <div class="sentence-play-settings">
-    <label>播放模式
-      <select id="sentenceAutoMode">
-        <option value="single">本句播放</option>
-        <option value="continuous">连续播放</option>
-      </select>
-    </label>
-    <label>播放间隔
-      <select id="sentenceAutoInterval"></select>
-    </label>
-    <label>播放次数
-      <select id="sentencePlayTimes"></select>
-    </label>
-  </div>
-  <div id="sentenceStatus" class="status">本句播放 · 1遍：播放1遍后停止</div>
 </div>
 
 <div class="card">
@@ -1774,7 +1802,8 @@ function backupReportHtml(data){
   </style></head><body><button class="no-print" onclick="window.print()" style="position:sticky;top:8px;padding:10px 18px;background:#111;color:#fff;border:0;border-radius:9px">保存为 PDF / 打印</button>
   <h1>英语学习完整资料</h1><p>导出时间：${escapeHtml(new Date(data.exportedAt).toLocaleString("zh-CN"))}</p><p>当前网址：${escapeHtml(data.currentUrl||data.lastVideoUrl||"无")}</p>
   <h2>已保存的学习视频网址</h2><ol>${videos}</ol><h2>自定义视频分段</h2>${segmentGroups}<h2>字幕</h2>${subtitleGroups}<h2>生词本</h2>${books}
-  <script>window.onload=()=>setTimeout(()=>window.print(),500)<\/script></body></html>`;
+  <script>window.onload=()=>setTimeout(()=>window.print(),500)<\/script>
+</body></html>`;
 }
 
 $("#exportCompletePdf").onclick=async function(){
@@ -4374,5 +4403,6 @@ initCloudSync();
 })();
 
 </script>
+
 </body>
 </html>
