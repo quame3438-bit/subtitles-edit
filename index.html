@@ -3427,34 +3427,6 @@ document.addEventListener("pointerdown",e=>{
   if(e.target.closest?.("#currentSubtitle"))return;
   if(subtitleTouchActive){subtitleTouchActive=false;setTimeout(updateTop,0);}
 },true);
-let subtitleCopyText="";
-function captureSubtitleCopyText(){
-  const el=$("#currentSubtitle"),selection=window.getSelection();
-  subtitleCopyText=selection&&!selection.isCollapsed&&el.contains(selection.anchorNode)&&el.contains(selection.focusNode)
-    ? selection.toString() : el.textContent;
-}
-$("#copyCurrentSubtitle")?.addEventListener("pointerdown",captureSubtitleCopyText);
-$("#copyCurrentSubtitle")?.addEventListener("touchstart",captureSubtitleCopyText,{passive:true});
-$("#copyCurrentSubtitle").onclick=async function(){
-  const text=subtitleCopyText||$("#currentSubtitle").textContent;
-  subtitleCopyText="";
-  const status=$("#subtitleCopyStatus");
-  if(!text||text==="字幕会显示在这里"){status.textContent="暂无字幕可复制";return;}
-  try{
-    if(navigator.clipboard?.writeText){
-      await navigator.clipboard.writeText(text);
-    }else{
-      const box=document.createElement("textarea");
-      box.value=text;box.readOnly=true;
-      box.style.cssText="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
-      document.body.appendChild(box);
-      try{box.focus();box.select();box.setSelectionRange(0,text.length);
-        if(!document.execCommand("copy"))throw new Error("copy failed");
-      }finally{box.remove();}
-    }
-    status.textContent="已复制";
-  }catch(e){status.textContent="复制未成功，请长按字幕选择文字后使用系统复制菜单";}
-};
 
 function focusKeyboardBridge(){
   if(subtitleSelectionActive())return;
