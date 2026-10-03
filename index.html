@@ -3424,7 +3424,7 @@ function beginSubtitleSelection(){subtitleTouchActive=true;}
 $("#currentSubtitle").addEventListener("pointerdown",beginSubtitleSelection);
 $("#currentSubtitle").addEventListener("touchstart",beginSubtitleSelection,{passive:true});
 document.addEventListener("pointerdown",e=>{
-  if(e.target.closest?.("#currentSubtitle,#copyCurrentSubtitle"))return;
+  if(e.target.closest?.("#currentSubtitle"))return;
   if(subtitleTouchActive){subtitleTouchActive=false;setTimeout(updateTop,0);}
 },true);
 let subtitleCopyText="";
@@ -3433,8 +3433,8 @@ function captureSubtitleCopyText(){
   subtitleCopyText=selection&&!selection.isCollapsed&&el.contains(selection.anchorNode)&&el.contains(selection.focusNode)
     ? selection.toString() : el.textContent;
 }
-$("#copyCurrentSubtitle").addEventListener("pointerdown",captureSubtitleCopyText);
-$("#copyCurrentSubtitle").addEventListener("touchstart",captureSubtitleCopyText,{passive:true});
+$("#copyCurrentSubtitle")?.addEventListener("pointerdown",captureSubtitleCopyText);
+$("#copyCurrentSubtitle")?.addEventListener("touchstart",captureSubtitleCopyText,{passive:true});
 $("#copyCurrentSubtitle").onclick=async function(){
   const text=subtitleCopyText||$("#currentSubtitle").textContent;
   subtitleCopyText="";
@@ -3539,7 +3539,7 @@ if(isAppleTouchDevice){
 
   document.addEventListener("pointerup",function(e){
     if(e.target===keyboardBridgeBadge)return;
-    if(isRealEditor(e.target)||e.target.closest?.("#currentSubtitle,#copyCurrentSubtitle"))return;
+    if(isRealEditor(e.target)||e.target.closest?.("#currentSubtitle"))return;
     setTimeout(focusKeyboardBridge,80);
   },true);
 
