@@ -2644,12 +2644,29 @@ function playSelectedSegment(){
     ? `▶️ 正在连续播放第${lockedSegmentIndex+1}段`
     : `🔒 已锁定第${lockedSegmentIndex+1}段 · 播放本段不会自动换段`;
 
-  segmentStartTimer=setTimeout(function(){
+  // YouTube/iPhone 上 seek 后立刻 play 有时会被播放器忽略。
+  // 先等待播放器真正到达分段开始点，再开始播放；超时也会强制尝试播放。
+  const startedAt=Date.now();
+  const startSegmentPlayback=function(){
     if(runId!==segmentPlaybackRunId)return;
-    segmentStartTimer=null;
-    segmentPlayMode=true;
-    play();
-  },250);
+    const current=now();
+    const reached=Math.abs(current-seg.start)<0.45 || current>=seg.start;
+    if(reached || Date.now()-startedAt>1200){
+      segmentStartTimer=null;
+      segmentPlayMode=true;
+      play();
+      setTimeout(()=>{
+        if(runId!==segmentPlaybackRunId)return;
+        if(!isPlaying()){
+          seek(seg.start);
+          play();
+        }
+      },220);
+      return;
+    }
+    segmentStartTimer=setTimeout(startSegmentPlayback,80);
+  };
+  segmentStartTimer=setTimeout(startSegmentPlayback,80);
 }
 
 function scheduleNextSegmentPlay(finishedIndex){
