@@ -892,6 +892,7 @@ function recoverPlayerControls(){
     playerReady=true;
     setPlayerEnabled(true);
     updatePlayCurrentButtonState();
+    installRemoteSegmentControls();
   }
   return usable;
 }
@@ -2559,7 +2560,7 @@ function applyEditedSegmentTimes(message){
 }
 
 $("#setSegStart").onclick=function(){
-  if(!playerReady)return;
+  if(!playerReady&&!recoverPlayerControls()){ $("#segmentStatus").textContent="播放器还没有准备好，请先播放一下视频"; return; }
   segmentStart=now();
   segmentEditField="start";
   showSegmentTimes();
@@ -2567,7 +2568,7 @@ $("#setSegStart").onclick=function(){
 };
 
 $("#setSegEnd").onclick=function(){
-  if(!playerReady)return;
+  if(!playerReady&&!recoverPlayerControls()){ $("#segmentStatus").textContent="播放器还没有准备好，请先播放一下视频"; return; }
   segmentEnd=now();
   segmentEditField="end";
   showSegmentTimes();
@@ -2615,7 +2616,14 @@ window.selectVideoSegment=function(i){
 };
 
 function playSelectedSegment(){
-  if(!playerReady || selectedSegmentIndex<0 || !videoSegments[selectedSegmentIndex])return;
+  if(!playerReady&&!recoverPlayerControls()){
+    $("#segmentStatus").textContent="播放器还没有准备好，请先播放一下视频";
+    return;
+  }
+  if(selectedSegmentIndex<0 || !videoSegments[selectedSegmentIndex]){
+    $("#segmentStatus").textContent="请先添加或选择一个视频分段";
+    return;
+  }
   playbackCountMode="segment";
   updateSegmentPlayCount();
   const runId=++segmentPlaybackRunId;
@@ -2731,7 +2739,7 @@ function updateRemotePlaybackState(){
   }catch(e){}
 }
 installRemoteSegmentControls();
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)installRemoteSegmentControls();});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){recoverPlayerControls();installRemoteSegmentControls();}});
 
 function deleteVideoSegment(i){
   if(segmentCaptionEditIndex>=0)commitSegmentCaptionEdit();
