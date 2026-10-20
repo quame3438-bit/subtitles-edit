@@ -150,6 +150,14 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   padding-bottom:22px !important;
 }
 
+/* 时间字幕播放：中央“继续本句”跨两行；AB三个按钮等宽等高 */
+.time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:88px 88px;gap:8px;margin-top:10px}
+.time-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3}
+#playCurrent{grid-column:2;grid-row:1 / span 2}
+#prev{grid-column:1;grid-row:1}#next{grid-column:3;grid-row:1}
+#cueRewind{grid-column:1;grid-row:2}#cueForward{grid-column:3;grid-row:2}
+.ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
@@ -306,26 +314,24 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 
 <div class="card" id="timeSubtitlePlayCard">
   <b>时间字幕播放</b>
-  <div class="controls" style="margin-top:0">
+  <div class="time-play-grid">
     <button class="secondary needsPlayer" id="prev">上一句</button>
-    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
-    <button class="secondary needsPlayer" id="next">下一句</button>
-  </div>
-  <div class="controls">
-    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
     <button class="needsPlayer" id="playCurrent">继续本句</button>
+    <button class="secondary needsPlayer" id="next">下一句</button>
+    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
     <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
   </div>
- </div>
+</div>
 
- <div class="card" id="abLoopCard">
-   <b>AB 循环</b>
-   <div class="controls" style="display:grid;grid-template-columns:1fr 1fr">
-     <button type="button" class="secondary needsPlayer" id="abMarkA">A · 设置起点</button>
-     <button type="button" class="secondary needsPlayer" id="abMarkB">B · 设置终点</button>
-   </div>
-   <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
- </div>
+<div class="card" id="abLoopCard">
+  <b>AB 循环</b>
+  <div class="ab-play-grid">
+    <button type="button" class="secondary needsPlayer" id="abMarkA">A · 设置起点</button>
+    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
+    <button type="button" class="secondary needsPlayer" id="abMarkB">B · 设置终点</button>
+  </div>
+  <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
+</div>
 
  <div class="card">
    <b>播放设置</b>
