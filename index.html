@@ -316,10 +316,19 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button class="needsPlayer" id="playCurrent">继续本句</button>
     <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
   </div>
-</div>
+ </div>
 
-<div class="card">
-  <b>播放设置</b>
+ <div class="card" id="abLoopCard">
+   <b>AB 循环</b>
+   <div class="controls" style="display:grid;grid-template-columns:1fr 1fr">
+     <button type="button" class="secondary needsPlayer" id="abMarkA">A · 设置起点</button>
+     <button type="button" class="secondary needsPlayer" id="abMarkB">B · 设置终点</button>
+   </div>
+   <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
+ </div>
+
+ <div class="card">
+   <b>播放设置</b>
   <div class="play-settings-grid">
     <div class="play-setting-item">
       <span class="play-setting-title">快退</span>
@@ -673,6 +682,29 @@ let sentenceAutoTimer = null;
 let sentenceStartTimer = null;
 let sentenceRunPlayCount = 0;
 let monitorTimer = null;
+let abStart=null,abEnd=null,abLoopActive=false;
+function refreshAbLoop(){
+  const a=document.getElementById("abMarkA"),b=document.getElementById("abMarkB"),status=document.getElementById("abLoopStatus");
+  if(!a||!b)return;
+  a.textContent=abStart===null?"A · 设置起点":"A · "+fmtSegmentTime(abStart)+" ✓";
+  b.textContent=abEnd===null?"B · 设置终点":"B · "+fmtSegmentTime(abEnd)+" ✓";
+  a.classList.toggle("secondary",abStart===null);
+  b.classList.toggle("secondary",abEnd===null);
+  status.textContent=abLoopActive?"AB 循环中：到 B 自动返回 A；点击 A 或 B 可取消对应标记。":(abStart===null?"点击 A 设置起点，再点击 B 设置终点并开始循环。":abEnd===null?"已设置 A，请播放到终点后点击 B。":"AB 循环未启动");
+}
+document.getElementById("abMarkA").addEventListener("click",()=>{
+  if(abStart!==null){abStart=null;abEnd=null;abLoopActive=false;}
+  else{abStart=now();abEnd=null;abLoopActive=false;cancelSentencePlay();cancelSegmentPlay();}
+  refreshAbLoop();
+});
+document.getElementById("abMarkB").addEventListener("click",()=>{
+  if(abEnd!==null){abEnd=null;abLoopActive=false;}
+  else if(abStart===null){document.getElementById("abLoopStatus").textContent="请先点击 A 设置起点";return;}
+  else if(now()<=abStart+0.05){document.getElementById("abLoopStatus").textContent="B 必须晚于 A，请播放到后面再设置";return;}
+  else{abEnd=now();abLoopActive=true;cancelSentencePlay();cancelSegmentPlay();seek(abStart);play();}
+  refreshAbLoop();
+});
+
 let suppressAutoUntil = 0;
 let lastMonitoredTime = null;
 let lastMonitorWallTime = 0;
@@ -3663,6 +3695,12 @@ function startMonitor(){
     updateRemotePlaybackState();
     refreshPreciseTime();
     const t=now();
+    if(abLoopActive && abStart!==null && abEnd!==null && t>=abEnd-0.035){
+      seek(abStart);
+      if(!isPlaying())play();
+      lastMonitoredTime=abStart;
+      return;
+    }
     const wallNow=Date.now();
     const previousTime=lastMonitoredTime;
     const elapsed=lastMonitorWallTime ? (wallNow-lastMonitorWallTime)/1000 : 0;
