@@ -330,7 +330,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
     <button type="button" class="secondary needsPlayer" id="abMarkB">B · 设置终点</button>
   </div>
-  <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
+  <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点；循环使用“播放模式设置”中的播放间隔和播放次数。</div>
 </div>
 
  <div class="card">
@@ -689,6 +689,34 @@ let sentenceStartTimer = null;
 let sentenceRunPlayCount = 0;
 let monitorTimer = null;
 let abStart=null,abEnd=null,abLoopActive=false;
+let abPlayCount=0,abWaitTimer=null,abWaiting=false;
+function cancelAbWait(){
+  if(abWaitTimer!==null){clearTimeout(abWaitTimer);abWaitTimer=null;}
+  abWaiting=false;
+}
+function resetAbProgress(){cancelAbWait();abPlayCount=0;}
+function finishAbPass(){
+  if(!abLoopActive||abWaiting||abStart===null||abEnd===null)return;
+  abPlayCount++;
+  pause();
+  const choice=document.getElementById("sentencePlayTimes").value;
+  const max=choice==="infinite"?Infinity:Math.max(1,Number(choice)||1);
+  if(abPlayCount>=max){
+    abLoopActive=false;
+    seek(abEnd);
+    refreshAbLoop();
+    document.getElementById("abLoopStatus").textContent=`AB 已播放 ${abPlayCount} 遍，已停止；点击 B 取消终点后可重新设置。`;
+    return;
+  }
+  const seconds=Math.max(0,Number(document.getElementById("sentenceAutoInterval").value)||0);
+  abWaiting=true;
+  document.getElementById("abLoopStatus").textContent=`AB 已播放 ${abPlayCount} 遍，${seconds} 秒后重复`;
+  abWaitTimer=setTimeout(()=>{
+    abWaitTimer=null;abWaiting=false;
+    if(!abLoopActive||abStart===null||abEnd===null)return;
+    seek(abStart);play();refreshAbLoop();
+  },seconds*1000);
+}
 function refreshAbLoop(){
   const a=document.getElementById("abMarkA"),b=document.getElementById("abMarkB"),status=document.getElementById("abLoopStatus");
   if(!a||!b)return;
@@ -696,18 +724,18 @@ function refreshAbLoop(){
   b.textContent=abEnd===null?"B · 设置终点":"B · "+fmtSegmentTime(abEnd)+" ✓";
   a.classList.toggle("secondary",abStart===null);
   b.classList.toggle("secondary",abEnd===null);
-  status.textContent=abLoopActive?"AB 循环中：到 B 自动返回 A；点击 A 或 B 可取消对应标记。":(abStart===null?"点击 A 设置起点，再点击 B 设置终点并开始循环。":abEnd===null?"已设置 A，请播放到终点后点击 B。":"AB 循环未启动");
+  status.textContent=abLoopActive?`AB 循环中：已播放 ${abPlayCount} 遍；按播放模式设置中的间隔和次数执行。`:(abStart===null?"点击 A 设置起点，再点击 B 设置终点并开始循环。":abEnd===null?"已设置 A，请播放到终点后点击 B。":"AB 循环未启动");
 }
 document.getElementById("abMarkA").addEventListener("click",()=>{
-  if(abStart!==null){abStart=null;abEnd=null;abLoopActive=false;}
-  else{abStart=now();abEnd=null;abLoopActive=false;cancelSentencePlay();cancelSegmentPlay();}
+  if(abStart!==null){resetAbProgress();abStart=null;abEnd=null;abLoopActive=false;}
+  else{resetAbProgress();abStart=now();abEnd=null;abLoopActive=false;cancelSentencePlay();cancelSegmentPlay();}
   refreshAbLoop();
 });
 document.getElementById("abMarkB").addEventListener("click",()=>{
-  if(abEnd!==null){abEnd=null;abLoopActive=false;}
+  if(abEnd!==null){resetAbProgress();abEnd=null;abLoopActive=false;}
   else if(abStart===null){document.getElementById("abLoopStatus").textContent="请先点击 A 设置起点";return;}
   else if(now()<=abStart+0.05){document.getElementById("abLoopStatus").textContent="B 必须晚于 A，请播放到后面再设置";return;}
-  else{abEnd=now();abLoopActive=true;cancelSentencePlay();cancelSegmentPlay();seek(abStart);play();}
+  else{resetAbProgress();abEnd=now();abLoopActive=true;cancelSentencePlay();cancelSegmentPlay();seek(abStart);play();}
   refreshAbLoop();
 });
 
@@ -3701,11 +3729,14 @@ function startMonitor(){
     updateRemotePlaybackState();
     refreshPreciseTime();
     const t=now();
-    if(abLoopActive && abStart!==null && abEnd!==null && t>=abEnd-0.035){
-      seek(abStart);
-      if(!isPlaying())play();
-      lastMonitoredTime=abStart;
-      return;
+    if(abLoopActive && abStart!==null && abEnd!==null){
+      if(abWaiting)return;
+      if(t>=abEnd-0.035){
+        finishAbPass();
+        lastMonitoredTime=now();
+        lastMonitorWallTime=Date.now();
+        return;
+      }
     }
     const wallNow=Date.now();
     const previousTime=lastMonitoredTime;
