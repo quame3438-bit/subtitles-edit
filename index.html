@@ -165,7 +165,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">云同步 V55 · 本句播放次数新逻辑</div>
+<div class="version">云同步 V56 · 字幕匹配修复</div>
 
 <div class="card">
   <b>☁️ 云同步</b>
@@ -1947,7 +1947,8 @@ $("#importCompleteJson").onchange=async function(){
     readVideoFolders();readSavedVideos();renderVideoFolderControls();renderSavedVideos();
     await renderVocabBooks();
     switchVocabBookForVideo(restoredUrl,false);
-    restoreSavedSubtitles(subtitleStorageKey(),true);
+    currentSourceKey="";subs=[];current=0;currentSubtitleName="";
+    $("#subStatus").textContent="备份已恢复，请打开对应视频后查看字幕";
     loadSegmentsFromLocal();renderAll();
     $("#completeBackupStatus").textContent="完整备份已导入并自动保存";
     alert("导入成功：网址、分段、段落字幕、时间轴字幕、生词本和图片已恢复");
@@ -2220,23 +2221,22 @@ $("#localVideoFile").onchange=async function(){
     const key=await localMediaFingerprint(file);
     const legacyKey=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
     const store=readSubtitleStore();
-    // 老版本仅靠文件名、大小和修改时间识别视频，不能验证内容。
-    // 因此旧字幕只在用户确认后复制，绝不直接自动匹配。
-    if(!store[key] && store[legacyKey] && Array.isArray(store[legacyKey].subs)){
-      if(confirm(`检测到旧版保存的字幕（${store[legacyKey].subs.length}条）。旧版无法确认它是否属于「${file.name}」。\n\n确定：将旧字幕关联到此视频。\n取消：不加载旧字幕，避免显示其他视频的字幕。`)){
-        store[key]={...store[legacyKey],name:store[legacyKey].name||file.name};
-        localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
-      }
-    }
-    // 旧版可能已把错误字幕写入新指纹键：首次加载也必须让用户核对。
-    // 选择取消只跳过加载，不删除任何历史字幕。
+    // 只在核实后迁移旧字幕；保留旧键，避免误关联或覆盖。
     let selectedKey=key;
-    if(store[key] && Array.isArray(store[key].subs) && store[key].subs.length){
-      const preview=String(store[key].subs.slice(0,2).map(x=>x.text||"").join(" / ")).slice(0,160);
-      const ok=confirm(`找到「${file.name}」关联的 ${store[key].subs.length} 条字幕。\n字幕预览：${preview}\n\n确定：这些字幕正确，恢复使用。\n取消：本次不加载（旧字幕仍保留）。`);
-      if(!ok){
-        selectedKey=key;
-        // 禁止加载错配数据，但保留原始存储。使用本次独立空白会话键。
+    const exact=store[key]&&Array.isArray(store[key].subs)?store[key]:null;
+    const legacy=store[legacyKey]&&Array.isArray(store[legacyKey].subs)?store[legacyKey]:null;
+    const candidate=exact||legacy;
+    if(candidate&&candidate.subs.length){
+      const preview=String(candidate.subs.slice(0,3).map(x=>x.text||"").join(" / ")).slice(0,220);
+      const ok=confirm(`检测到 ${candidate.subs.length} 条保存的字幕。\n视频：${file.name}\n字幕名称：${candidate.name||"未命名"}\n字幕预览：${preview}\n\n只有确认内容属于这个视频才点“好”。\n取消：本次使用空白字幕，原字幕完整保留。`);
+      if(ok){
+        if(!exact){
+          // 复制旧字幕，不修改旧存档；本次立即恢复新键下的字幕。
+          store[key]={...legacy,name:legacy.name||file.name};
+          localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
+        }
+      }else{
+        // 不把未经核实的字幕绑定到真实指纹；独立临时会话。
         selectedKey=key+":unverified:"+Date.now();
       }
     }
@@ -3933,7 +3933,10 @@ async function applyCloudPayload(payload){
     $("#ytUrl").value="";
     restoreCloudUiSettings();
     switchVocabBookForVideo(restoredUrl||activeVideoKey(),false);
-    restoreSavedSubtitles(videoSourceKey(restoredUrl)||subtitleStorageKey(),true);
+    // 尚未主动打开视频，禁止根据上次 URL 或旧 currentSourceKey 加载字幕。
+    currentSourceKey="";
+    subs=[];current=0;currentSubtitleName="";
+    $("#subStatus").textContent="请先打开视频，再加载该视频的字幕";
     loadSegmentsFromLocal();renderAll();
   }finally{cloudApplying=false;}
 }
