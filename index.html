@@ -1012,19 +1012,57 @@ function resolvedSubtitleEntry(key){
   if(linked && store[linked] && Array.isArray(store[linked].subs))return store[linked];
   return store[key];
 }
+// Large subtitle records are kept in IndexedDB rather than rewriting a single localStorage blob.
+const SUB_DB_NAME="ytSubtitleRecordsDB",SUB_DB_TABLE="records";
+let subDbPromise=null,subWriteSerial=Promise.resolve(),subRestoreToken=0;
+function openSubDb(){
+  if(!subDbPromise)subDbPromise=new Promise((resolve,reject)=>{
+    const req=indexedDB.open(SUB_DB_NAME,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(SUB_DB_TABLE))req.result.createObjectStore(SUB_DB_TABLE);};
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error("IndexedDB 无法打开"));
+  }).catch(e=>{subDbPromise=null;throw e;});
+  return subDbPromise;
+}
+async function subDbPut(key,entry){
+  const db=await openSubDb();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(SUB_DB_TABLE,"readwrite");
+    tx.objectStore(SUB_DB_TABLE).put(entry,key);
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });
+}
+async function subDbGet(key){
+  const db=await openSubDb();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(SUB_DB_TABLE,"readonly"),req=tx.objectStore(SUB_DB_TABLE).get(key);
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+  });
+}
+async function subDbEntries(){
+  const db=await openSubDb();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(SUB_DB_TABLE,"readonly"),store=tx.objectStore(SUB_DB_TABLE),req=store.openCursor(),out=[];
+    req.onsuccess=()=>{const c=req.result;if(c){out.push([String(c.key),c.value]);c.continue();}else resolve(out);};
+    req.onerror=()=>reject(req.error);
+  });
+}
+function subtitleSnapshot(){return {name:currentSubtitleName||"自动保存的字幕",savedAt:new Date().toISOString(),subs:subs.map(s=>({start:Number(s.start)||0,end:Number(s.end)||0,text:String(s.text||""),playCount:Math.max(0,Math.floor(Number(s.playCount)||0))}))};}
 function saveSubtitlesNow(){
-  const store=readSubtitleStore();
-  store[subtitleStorageKey()]={
-    name:currentSubtitleName||"自动保存的字幕",
-    savedAt:new Date().toISOString(),
-    subs:subs.map(s=>({start:Number(s.start)||0,end:Number(s.end)||0,text:String(s.text||""),playCount:Math.max(0,Math.floor(Number(s.playCount)||0))}))
-  };
+  if(!subs.length)return;
+  const key=subtitleStorageKey(),entry=subtitleSnapshot();
+  subWriteSerial=subWriteSerial.catch(()=>{}).then(()=>subDbPut(key,entry)).then(()=>{
+    if(key===subtitleStorageKey())$("#subStatus").textContent=`已保存 ${entry.subs.length} 条字幕（大容量存储）`;
+  }).catch(e=>{$("#subStatus").textContent="字幕保存失败："+(e?.message||e)+"。请先导出字幕备份。";});
+}
+async function restoreDbSubtitles(key,token){
   try{
-    localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
-    if(subs.length)$("#subStatus").textContent=`已自动保存 ${subs.length} 条：${currentSubtitleName||"字幕"}`;
-  }catch(e){
-    $("#subStatus").textContent="字幕自动保存失败：本机存储空间不足";
-  }
+    const bindings=readSubtitleBindings(),linked=bindings[key];
+    const entry=(linked&&await subDbGet(linked))||await subDbGet(key);
+    if(token!==subRestoreToken||key!==subtitleStorageKey())return;
+    if(entry&&Array.isArray(entry.subs)){
+      subs=entry.subs.filter(Boolean).map(s=>({start:Math.max(0,Number(s.start)||0),end:Math.max(0,Number(s.end)||0),text:String(s.text||""),playCount:Math.max(0,Math.floor(Number(s.playCount)||0))}));
+      currentSubtitleName=String(entry.name||"自动保存的字幕");current=0;
+      $("#subStatus").textContent=`已恢复 ${subs.length} 条：${currentSubtitleName}`;renderAll();
+    }
+  }catch(e){console.warn("读取大容量字幕失败",e);}
 }
 
 function scheduleSubtitleSave(){
@@ -1035,6 +1073,7 @@ function scheduleSubtitleSave(){
 function restoreSavedSubtitles(key=subtitleStorageKey(),clearWhenMissing=false){
   const saved=resolvedSubtitleEntry(key);
   if(saved&&Array.isArray(saved.subs)){
+    ++subRestoreToken;
     subs=saved.subs.filter(Boolean).map(s=>({
       start:Math.max(0,Number(s.start)||0),
       end:Math.max(0,Number(s.end)||0),
@@ -1046,6 +1085,9 @@ function restoreSavedSubtitles(key=subtitleStorageKey(),clearWhenMissing=false){
     renderAll();
     return true;
   }
+  const restoreToken=++subRestoreToken;
+  // Legacy storage is read first; IndexedDB records are restored asynchronously.
+  restoreDbSubtitles(key,restoreToken);
   if(clearWhenMissing){
     subs=[];current=0;currentSubtitleName="";
     $("#subStatus").textContent="这个视频还没有保存的字幕";
@@ -2266,9 +2308,10 @@ $("#localVideoFile").onchange=async function(){
   }
 };
 
-function refreshManualSubtitleChoices(){
+async function refreshManualSubtitleChoices(){
   const sel=$("#manualSubtitleChoice");if(!sel)return;
   const prev=sel.value,store=readSubtitleStore();
+  try{for(const [key,entry] of await subDbEntries())if(entry&&Array.isArray(entry.subs))store[key]=entry;}catch(e){}
   sel.replaceChildren(new Option("选择已保存的字幕",""));
   Object.entries(store).filter(([k,v])=>v&&Array.isArray(v.subs)&&v.subs.length).sort((a,b)=>String(b[1].savedAt||"").localeCompare(String(a[1].savedAt||""))).forEach(([key,v])=>{
     const label=`${v.name||"未命名"}（${v.subs.length}条） · ${key.slice(0,22)}`;
@@ -2278,12 +2321,14 @@ function refreshManualSubtitleChoices(){
   const info=$("#manualBindVideoInfo");
   if(info)info.textContent=currentSourceKey?`当前视频：${nativeSourceName||$("#ytUrl").value||currentSourceKey}（已识别）`:'请先加载视频';
 }
-$("#manualBindSubtitle").onclick=function(){
+$("#manualBindSubtitle").onclick=async function(){
   const source=$("#manualSubtitleChoice").value;
   const dest=currentSourceKey;
   const status=$("#manualBindStatus");
   if(!dest){status.textContent="请先加载要绑定的视频";return;}
-  const store=readSubtitleStore(),entry=store[source];
+  const store=readSubtitleStore();
+  let entry=store[source];
+  if(!entry)try{entry=await subDbGet(source);}catch(e){}
   if(!source||!entry||!Array.isArray(entry.subs)){status.textContent="请先选择字幕记录";return;}
   const preview=entry.subs.slice(0,3).map(x=>x.text||"").join(" / ").slice(0,180);
   if(!confirm(`请核对字幕内容：\n${entry.name||"未命名"}，${entry.subs.length}条\n${preview}\n\n确认将这份字幕绑定到当前视频吗？`))return;
@@ -2296,7 +2341,7 @@ $("#manualBindSubtitle").onclick=function(){
   status.textContent=`已绑定 ${subs.length} 条字幕到当前视频`;
   refreshManualSubtitleChoices();
 };
-setInterval(refreshManualSubtitleChoices,2500);
+setInterval(refreshManualSubtitleChoices,15000);
 function now(){
   if(!playerReady || !player || typeof player.getCurrentTime!=="function") return 0;
   return Number(player.getCurrentTime())||0;
