@@ -746,6 +746,7 @@ const SAVED_VIDEO_FOLDER_KEY="ytSavedVideoFolders:v1";
 const SAVED_VIDEO_FOLDER_FILTER_KEY="ytSavedVideoFolderFilter:v1";
 const LAST_VIDEO_URL_KEY="ytLastVideoUrl:v1";
 const SUBTITLE_STORE_KEY="ytAutoSavedSubtitles:v1";
+const SUBTITLE_BIND_MAP_KEY="ytSubtitleBindings:v1";
 const VIDEO_VOCAB_MAP_KEY="ytVideoVocabMap:v1";
 const SEGMENT_CAPTION_FONT_KEY="ytSegmentCaptionFontSize:v1";
 const SEGMENT_AUTO_MODE_KEY="ytSegmentAutoMode:v1";
@@ -763,7 +764,7 @@ const CLOUD_PUBLISHABLE_KEY="sb_publishable_JecnrG-198PERwUD5lFhaQ_wc0vV4Lj";
 const CLOUD_TABLE="subtitle_editor_cloud";
 const CLOUD_FIXED_KEYS=new Set([
   SAVED_VIDEO_KEY,SAVED_VIDEO_FOLDER_KEY,SAVED_VIDEO_FOLDER_FILTER_KEY,LAST_VIDEO_URL_KEY,
-  SUBTITLE_STORE_KEY,VIDEO_VOCAB_MAP_KEY,SEGMENT_CAPTION_FONT_KEY,SEGMENT_AUTO_MODE_KEY,
+  SUBTITLE_STORE_KEY,SUBTITLE_BIND_MAP_KEY,VIDEO_VOCAB_MAP_KEY,SEGMENT_CAPTION_FONT_KEY,SEGMENT_AUTO_MODE_KEY,
   SEGMENT_AUTO_INTERVAL_KEY,SENTENCE_AUTO_MODE_KEY,SENTENCE_AUTO_INTERVAL_KEY,SENTENCE_PLAY_TIMES_KEY,"ytVocabBooks:v1",AI_LIST_KEY,AI_FOLDER_KEY,AI_FOLDER_FILTER_KEY,CLOUD_UI_SETTINGS_KEY
 ]);
 let segmentCaptionFontSize=Math.max(12,Math.min(36,Number(localStorage.getItem(SEGMENT_CAPTION_FONT_KEY))||16));
@@ -1001,6 +1002,16 @@ function readSubtitleStore(){
   }catch(e){return {};}
 }
 
+function readSubtitleBindings(){
+  try{const m=JSON.parse(localStorage.getItem(SUBTITLE_BIND_MAP_KEY)||"{}");return m&&typeof m==="object"&&!Array.isArray(m)?m:{};}catch(e){return {};}
+}
+function resolvedSubtitleEntry(key){
+  const store=readSubtitleStore();
+  const bindings=readSubtitleBindings();
+  const linked=bindings[key];
+  if(linked && store[linked] && Array.isArray(store[linked].subs))return store[linked];
+  return store[key];
+}
 function saveSubtitlesNow(){
   const store=readSubtitleStore();
   store[subtitleStorageKey()]={
@@ -1022,7 +1033,7 @@ function scheduleSubtitleSave(){
 }
 
 function restoreSavedSubtitles(key=subtitleStorageKey(),clearWhenMissing=false){
-  const saved=readSubtitleStore()[key];
+  const saved=resolvedSubtitleEntry(key);
   if(saved&&Array.isArray(saved.subs)){
     subs=saved.subs.filter(Boolean).map(s=>({
       start:Math.max(0,Number(s.start)||0),
@@ -2276,14 +2287,11 @@ $("#manualBindSubtitle").onclick=function(){
   if(!source||!entry||!Array.isArray(entry.subs)){status.textContent="请先选择字幕记录";return;}
   const preview=entry.subs.slice(0,3).map(x=>x.text||"").join(" / ").slice(0,180);
   if(!confirm(`请核对字幕内容：\n${entry.name||"未命名"}，${entry.subs.length}条\n${preview}\n\n确认将这份字幕绑定到当前视频吗？`))return;
-  if(source!==dest && store[dest]&&Array.isArray(store[dest].subs)&&store[dest].subs.length){
-    if(!confirm("当前视频已有保存字幕，继续将替换其绑定。原字幕会先备份到独立记录。"))return;
-    const backupKey=`manual-backup:${dest}:${Date.now()}`;
-    store[backupKey]=structuredClone(store[dest]);
-  }
-  store[dest]={...entry,subs:entry.subs.map(x=>({...x})),savedAt:new Date().toISOString()};
-  try{localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));}
-  catch(e){status.textContent="绑定保存失败：请检查本机存储空间";return;}
+  // 仅保存小型映射，不复制整份字幕。避免 Safari localStorage 配额溢出。
+  const bindings=readSubtitleBindings();
+  bindings[dest]=source;
+  try{localStorage.setItem(SUBTITLE_BIND_MAP_KEY,JSON.stringify(bindings));}
+  catch(e){status.textContent="绑定保存失败：浏览器无法写入绑定信息（可能为隐私模式或存储已满）";return;}
   restoreSavedSubtitles(dest,true);
   status.textContent=`已绑定 ${subs.length} 条字幕到当前视频`;
   refreshManualSubtitleChoices();
