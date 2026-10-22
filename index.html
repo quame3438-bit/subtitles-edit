@@ -2216,13 +2216,19 @@ $("#localVideoFile").onchange=async function(){
   const file=this.files&&this.files[0];
   if(!file)return;
   this.value="";
-  $("#videoStatus").textContent="正在核对视频指纹，防止字幕匹配错误…";
+  const src=URL.createObjectURL(file);
+  const legacyKey=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
+  let key=legacyKey;
   try{
-    const key=await localMediaFingerprint(file);
-    const legacyKey=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
+    $("#videoStatus").textContent="正在识别视频…";
+    key=await localMediaFingerprint(file);
+  }catch(e){
+    // Fingerprinting is optional: never block video loading on crypto/browser errors.
+    console.warn("视频指纹计算失败，使用旧版标识",e);
+  }
+  let selectedKey=key;
+  try{
     const store=readSubtitleStore();
-    // 只在核实后迁移旧字幕；保留旧键，避免误关联或覆盖。
-    let selectedKey=key;
     const exact=store[key]&&Array.isArray(store[key].subs)?store[key]:null;
     const legacy=store[legacyKey]&&Array.isArray(store[legacyKey].subs)?store[legacyKey]:null;
     const candidate=exact||legacy;
@@ -2231,19 +2237,32 @@ $("#localVideoFile").onchange=async function(){
       const ok=confirm(`检测到 ${candidate.subs.length} 条保存的字幕。\n视频：${file.name}\n字幕名称：${candidate.name||"未命名"}\n字幕预览：${preview}\n\n只有确认内容属于这个视频才点“好”。\n取消：本次使用空白字幕，原字幕完整保留。`);
       if(ok){
         if(!exact){
-          // 复制旧字幕，不修改旧存档；本次立即恢复新键下的字幕。
-          store[key]={...legacy,name:legacy.name||file.name};
-          localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
+          try{
+            store[key]={...legacy,name:legacy.name||file.name};
+            localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
+          }catch(e){
+            // Storage quota failures must not stop the video from opening.
+            console.warn("旧字幕迁移暂未保存",e);
+            selectedKey=legacyKey;
+          }
         }
       }else{
-        // 不把未经核实的字幕绑定到真实指纹；独立临时会话。
         selectedKey=key+":unverified:"+Date.now();
       }
     }
+  }catch(e){console.warn("字幕核对失败，继续加载视频",e);}
+  // Never make media playback depend on subtitle migration succeeding.
+  try{
     $("#ytUrl").value=`本地媒体：${file.name}`;
-    loadNativeVideo(URL.createObjectURL(file),selectedKey,file.name,"local");
+    loadNativeVideo(src,selectedKey,file.name,"local");
   }catch(e){
-    $("#videoStatus").textContent="视频识别失败："+(e&&e.message||e);
+    console.error("视频初始化失败",e);
+    const video=$("#nativePlayer");
+    currentSourceType="local";currentSourceKey=selectedKey;
+    $("#player").style.display="none";
+    video.style.display="block";
+    video.src=src;video.load();
+    $("#videoStatus").textContent="视频已选择；如未自动播放，请点击视频上的播放键。字幕初始化异常："+(e?.message||e);
   }
 };
 
