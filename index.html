@@ -180,124 +180,45 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button id="cloudDownloadNow" class="secondary" type="button">下载云端数据</button>
     <button id="cloudLogout" class="secondary" type="button">退出云同步</button>
   </div>
+  <div style="margin-top:12px;padding:10px;background:#f3f3f5;border-radius:12px">
+    <b>视频与字幕绑定</b>
+    <div class="small" id="manualBindVideoInfo" style="margin:8px 0">请先加载视频</div>
+    <select id="manualSubtitleChoice" aria-label="选择要绑定的字幕"><option value="">选择已保存的字幕</option></select>
+    <div class="controls"><button id="manualBindSubtitle" type="button">绑定此视频和字幕</button></div>
+    <div id="manualBindStatus" class="status">不再自动弹出旧字幕确认窗口；仅手动绑定。</div>
+  </div>
   <div id="cloudStatus" class="status cloud-status warn">尚未登录；网页仍会正常保存在本机</div>
   <div class="small" style="margin-top:7px">登录同一账号后，视频网址、文件夹、字幕、分段、生词文字和播放设置会在手机、iPad、电脑间同步。本地视频文件和生词图片不上传。</div>
 </div>
 
-<div class="card">
-  <b>已保存的学习视频</b>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">视频文件夹
-      <select id="savedVideoFolderFilter"></select>
-    </label>
-    <button class="secondary" id="createVideoFolder">＋ 新建文件夹</button>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="renameVideoFolder">重命名文件夹</button>
-    <button class="secondary" id="deleteVideoFolder">删除文件夹</button>
-  </div>
-  <div id="savedVideoList" class="saved-video-list"></div>
-  <div class="controls">
-    <button id="loadSavedVideo">打开选中</button>
-    <button class="secondary" id="renameSavedVideo">重命名</button>
-    <button class="secondary" id="deleteSavedVideo">删除选中</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">把选中视频移到
-      <select id="moveVideoFolderSelect"></select>
-    </label>
-    <button class="secondary" id="moveVideoToFolder">移动</button>
-  </div>
-  <div id="savedVideoStatus" class="status"></div>
-  <div id="videoVocabBindStatus" class="status" hidden></div>
-</div>
+
+
+
 
 <div class="card">
-  <b>🎧 AI 生成英语听力</b>
-  <div class="small" style="margin-top:7px">MP3 只保留在当前设备，不上传云端；英文文字、字幕、时间轴和学习条目信息会自动保存并同步云端。</div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">听力等级（发声方式）
-      <select id="ttsLevel">
-        <option value="1">Level 1 · 清楚分句</option>
-        <option value="2">Level 2 · 轻度自然连读</option>
-        <option value="3">Level 3 · 正常美语节奏</option>
-        <option value="4">Level 4 · 日常会话语流</option>
-        <option value="5">Level 5 · 母语弱读连读</option>
-        <option value="6">Level 6 · 真实访谈语流</option>
-      </select>
-    </label>
-    <label style="flex:1">生成语速（自己调）
-      <select id="ttsSpeed">
-        <option value="-1">慢一些 · -1</option>
-        <option value="-0.8">较慢 · -0.8</option>
-        <option value="-0.5" selected>稍慢 · -0.5</option>
-        <option value="0">正常 · 0</option>
-        <option value="0.3">稍快 · +0.3</option>
-        <option value="0.6">较快 · +0.6</option>
-        <option value="0.9">快 · +0.9</option>
-      </select>
-    </label>
-  </div>
-  <div class="small" id="ttsLevelHint" style="margin-top:7px">Level 1：发音边界清楚、停顿完整；等级只控制发声/断句风格，不再自动修改语速。</div>
-  <label style="display:block;margin-top:10px">学习材料名称
-    <input id="ttsTitle" type="text" placeholder="例如：Level 1 Morning Routine">
-  </label>
-  <label style="display:block;margin-top:10px">英文原文（每行一句）
-    <textarea id="ttsText" style="min-height:190px" placeholder="每行输入一句英文；也可以把 Level 2｜标题 放在第一行，网页会自动识别等级和名称"></textarea>
-  </label>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">音色
-      <select id="ttsVoice">
-        <option value="502003">智小敏 · 超自然女声</option>
-        <option value="502001">智小柔 · 超自然女声</option>
-        <option value="602005">专业梓欣 · 超自然女声</option>
-      </select>
-    </label>
-  </div>
-  <label style="display:block;margin-top:10px">接口密码
-    <input id="ttsPassword" type="password" placeholder="原来的语音转文字接口密码" autocomplete="current-password">
-  </label>
-  <div class="controls">
-    <button id="ttsGenerate">生成 MP3 + 字幕</button>
+  <b>加载视频</b>
+  <div class="urlrow" style="margin-top:10px">
+    <input id="ytUrl" type="text" placeholder="粘贴 YouTube 或 MP4 / MOV / WebM 直链">
+    <button id="loadBtn">加载视频</button>
   </div>
   <div class="controls">
-    <label class="filebtn secondary" style="flex:1">导入 MP3
-      <input id="ttsImportMp3" type="file" accept="audio/mpeg,.mp3">
+    <label class="filebtn secondary" style="flex:1">选择本地视频／音频
+      <input id="localVideoFile" type="file" accept="video/*,audio/*,.mp4,.mov,.webm,.m4v,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aiff,.aif">
     </label>
-    <button class="secondary" id="ttsExportMp3" style="flex:1">导出 MP3</button>
   </div>
   <div class="controls">
-    <label class="filebtn secondary" style="flex:1">导入字幕
-      <input id="ttsImportSubtitle" type="file" accept=".srt,.vtt,text/plain">
-    </label>
-    <button class="secondary" id="ttsExportSubtitle" style="flex:1">导出字幕</button>
-  </div>
-  <div id="ttsStatus" class="status">尚未生成音频</div>
-
-  <div class="ai-library">
-    <b style="font-size:18px">📚 AI 英语听力文件列表</b>
-    <div class="row" style="margin-top:10px">
-      <label style="flex:1">AI 听力文件夹<select id="aiFolderFilter"></select></label>
-      <button class="secondary" id="aiCreateFolder">＋ 新建文件夹</button>
-    </div>
-    <div class="controls">
-      <button class="secondary" id="aiRenameFolder">重命名文件夹</button>
-      <button class="secondary" id="aiDeleteFolder">删除文件夹</button>
-    </div>
-    <div id="aiListeningList" class="ai-list"></div>
-    <div class="controls">
-      <button id="aiOpenItem">打开选中</button>
-      <button class="secondary" id="aiRenameItem">修改名称</button>
-      <button class="secondary" id="aiDeleteItem">删除选中</button>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <label style="flex:1">把选中听力移到<select id="aiMoveFolder"></select></label>
-      <button class="secondary" id="aiMoveItem">移动</button>
-    </div>
-    <div id="aiListStatus" class="status">还没有 AI 英语听力。生成后会自动出现在这里；换设备登录后列表、文字和字幕会从云端恢复，MP3 需要本机重新导入。</div>
+    <button class="secondary" id="bindVideoVocabBook">绑定单词本</button>
   </div>
 </div>
-
+<div class="card">
+  <b>3. 导入字幕</b>
+  <div class="row" style="margin-top:10px">
+    <label class="filebtn">＋ 导入 SRT / VTT<input id="srtFile" type="file" accept="*/*"></label>
+    <button class="secondary" id="exportSubtitleBelow">导出字幕</button>
+    <button class="secondary" id="addSub">＋ 添加一条</button>
+  </div>
+  <div id="subStatus" class="status">尚未导入字幕</div>
+</div>
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
@@ -525,15 +446,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="list" class="subtitle-strip"></div>
 </div>
 
-<div class="card">
-  <b>3. 导入字幕</b>
-  <div class="row" style="margin-top:10px">
-    <label class="filebtn">＋ 导入 SRT / VTT<input id="srtFile" type="file" accept="*/*"></label>
-    <button class="secondary" id="exportSubtitleBelow">导出字幕</button>
-    <button class="secondary" id="addSub">＋ 添加一条</button>
-  </div>
-  <div id="subStatus" class="status">尚未导入字幕</div>
-</div>
+
 
 <div class="card">
   <b>全部数据导出与恢复</b>
@@ -547,21 +460,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="completeBackupStatus" class="status">包含视频网址、分段、段落字幕、时间轴字幕、生词本和全部图片</div>
 </div>
 
-<div class="card">
-  <b>加载视频</b>
-  <div class="urlrow" style="margin-top:10px">
-    <input id="ytUrl" type="text" placeholder="粘贴 YouTube 或 MP4 / MOV / WebM 直链">
-    <button id="loadBtn">加载视频</button>
-  </div>
-  <div class="controls">
-    <label class="filebtn secondary" style="flex:1">选择本地视频／音频
-      <input id="localVideoFile" type="file" accept="video/*,audio/*,.mp4,.mov,.webm,.m4v,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aiff,.aif">
-    </label>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="bindVideoVocabBook">绑定单词本</button>
-  </div>
-</div>
+
 <div class="card">
   <b>精准定位</b>
   <div style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:center">
@@ -571,6 +470,118 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   </div>
   <label style="display:block;margin-top:10px">退进时间<select id="preciseStep"></select></label>
   <div id="preciseStatus" class="status" role="status"></div>
+</div>
+<div class="card">
+  <b>已保存的学习视频</b>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">视频文件夹
+      <select id="savedVideoFolderFilter"></select>
+    </label>
+    <button class="secondary" id="createVideoFolder">＋ 新建文件夹</button>
+  </div>
+  <div class="controls">
+    <button class="secondary" id="renameVideoFolder">重命名文件夹</button>
+    <button class="secondary" id="deleteVideoFolder">删除文件夹</button>
+  </div>
+  <div id="savedVideoList" class="saved-video-list"></div>
+  <div class="controls">
+    <button id="loadSavedVideo">打开选中</button>
+    <button class="secondary" id="renameSavedVideo">重命名</button>
+    <button class="secondary" id="deleteSavedVideo">删除选中</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">把选中视频移到
+      <select id="moveVideoFolderSelect"></select>
+    </label>
+    <button class="secondary" id="moveVideoToFolder">移动</button>
+  </div>
+  <div id="savedVideoStatus" class="status"></div>
+  <div id="videoVocabBindStatus" class="status" hidden></div>
+</div>
+<div class="card">
+  <b>🎧 AI 生成英语听力</b>
+  <div class="small" style="margin-top:7px">MP3 只保留在当前设备，不上传云端；英文文字、字幕、时间轴和学习条目信息会自动保存并同步云端。</div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">听力等级（发声方式）
+      <select id="ttsLevel">
+        <option value="1">Level 1 · 清楚分句</option>
+        <option value="2">Level 2 · 轻度自然连读</option>
+        <option value="3">Level 3 · 正常美语节奏</option>
+        <option value="4">Level 4 · 日常会话语流</option>
+        <option value="5">Level 5 · 母语弱读连读</option>
+        <option value="6">Level 6 · 真实访谈语流</option>
+      </select>
+    </label>
+    <label style="flex:1">生成语速（自己调）
+      <select id="ttsSpeed">
+        <option value="-1">慢一些 · -1</option>
+        <option value="-0.8">较慢 · -0.8</option>
+        <option value="-0.5" selected>稍慢 · -0.5</option>
+        <option value="0">正常 · 0</option>
+        <option value="0.3">稍快 · +0.3</option>
+        <option value="0.6">较快 · +0.6</option>
+        <option value="0.9">快 · +0.9</option>
+      </select>
+    </label>
+  </div>
+  <div class="small" id="ttsLevelHint" style="margin-top:7px">Level 1：发音边界清楚、停顿完整；等级只控制发声/断句风格，不再自动修改语速。</div>
+  <label style="display:block;margin-top:10px">学习材料名称
+    <input id="ttsTitle" type="text" placeholder="例如：Level 1 Morning Routine">
+  </label>
+  <label style="display:block;margin-top:10px">英文原文（每行一句）
+    <textarea id="ttsText" style="min-height:190px" placeholder="每行输入一句英文；也可以把 Level 2｜标题 放在第一行，网页会自动识别等级和名称"></textarea>
+  </label>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">音色
+      <select id="ttsVoice">
+        <option value="502003">智小敏 · 超自然女声</option>
+        <option value="502001">智小柔 · 超自然女声</option>
+        <option value="602005">专业梓欣 · 超自然女声</option>
+      </select>
+    </label>
+  </div>
+  <label style="display:block;margin-top:10px">接口密码
+    <input id="ttsPassword" type="password" placeholder="原来的语音转文字接口密码" autocomplete="current-password">
+  </label>
+  <div class="controls">
+    <button id="ttsGenerate">生成 MP3 + 字幕</button>
+  </div>
+  <div class="controls">
+    <label class="filebtn secondary" style="flex:1">导入 MP3
+      <input id="ttsImportMp3" type="file" accept="audio/mpeg,.mp3">
+    </label>
+    <button class="secondary" id="ttsExportMp3" style="flex:1">导出 MP3</button>
+  </div>
+  <div class="controls">
+    <label class="filebtn secondary" style="flex:1">导入字幕
+      <input id="ttsImportSubtitle" type="file" accept=".srt,.vtt,text/plain">
+    </label>
+    <button class="secondary" id="ttsExportSubtitle" style="flex:1">导出字幕</button>
+  </div>
+  <div id="ttsStatus" class="status">尚未生成音频</div>
+
+  <div class="ai-library">
+    <b style="font-size:18px">📚 AI 英语听力文件列表</b>
+    <div class="row" style="margin-top:10px">
+      <label style="flex:1">AI 听力文件夹<select id="aiFolderFilter"></select></label>
+      <button class="secondary" id="aiCreateFolder">＋ 新建文件夹</button>
+    </div>
+    <div class="controls">
+      <button class="secondary" id="aiRenameFolder">重命名文件夹</button>
+      <button class="secondary" id="aiDeleteFolder">删除文件夹</button>
+    </div>
+    <div id="aiListeningList" class="ai-list"></div>
+    <div class="controls">
+      <button id="aiOpenItem">打开选中</button>
+      <button class="secondary" id="aiRenameItem">修改名称</button>
+      <button class="secondary" id="aiDeleteItem">删除选中</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="flex:1">把选中听力移到<select id="aiMoveFolder"></select></label>
+      <button class="secondary" id="aiMoveItem">移动</button>
+    </div>
+    <div id="aiListStatus" class="status">还没有 AI 英语听力。生成后会自动出现在这里；换设备登录后列表、文字和字幕会从云端恢复，MP3 需要本机重新导入。</div>
+  </div>
 </div>
 <div class="card" id="pageSearchCard">
   <b>字幕搜索</b>
@@ -2226,31 +2237,9 @@ $("#localVideoFile").onchange=async function(){
     // Fingerprinting is optional: never block video loading on crypto/browser errors.
     console.warn("视频指纹计算失败，使用旧版标识",e);
   }
+  // Only load subtitles already saved against this exact fingerprint.
+  // Old keys are retained untouched; manual binding is available above.
   let selectedKey=key;
-  try{
-    const store=readSubtitleStore();
-    const exact=store[key]&&Array.isArray(store[key].subs)?store[key]:null;
-    const legacy=store[legacyKey]&&Array.isArray(store[legacyKey].subs)?store[legacyKey]:null;
-    const candidate=exact||legacy;
-    if(candidate&&candidate.subs.length){
-      const preview=String(candidate.subs.slice(0,3).map(x=>x.text||"").join(" / ")).slice(0,220);
-      const ok=confirm(`检测到 ${candidate.subs.length} 条保存的字幕。\n视频：${file.name}\n字幕名称：${candidate.name||"未命名"}\n字幕预览：${preview}\n\n只有确认内容属于这个视频才点“好”。\n取消：本次使用空白字幕，原字幕完整保留。`);
-      if(ok){
-        if(!exact){
-          try{
-            store[key]={...legacy,name:legacy.name||file.name};
-            localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
-          }catch(e){
-            // Storage quota failures must not stop the video from opening.
-            console.warn("旧字幕迁移暂未保存",e);
-            selectedKey=legacyKey;
-          }
-        }
-      }else{
-        selectedKey=key+":unverified:"+Date.now();
-      }
-    }
-  }catch(e){console.warn("字幕核对失败，继续加载视频",e);}
   // Never make media playback depend on subtitle migration succeeding.
   try{
     $("#ytUrl").value=`本地媒体：${file.name}`;
@@ -2266,6 +2255,40 @@ $("#localVideoFile").onchange=async function(){
   }
 };
 
+function refreshManualSubtitleChoices(){
+  const sel=$("#manualSubtitleChoice");if(!sel)return;
+  const prev=sel.value,store=readSubtitleStore();
+  sel.replaceChildren(new Option("选择已保存的字幕",""));
+  Object.entries(store).filter(([k,v])=>v&&Array.isArray(v.subs)&&v.subs.length).sort((a,b)=>String(b[1].savedAt||"").localeCompare(String(a[1].savedAt||""))).forEach(([key,v])=>{
+    const label=`${v.name||"未命名"}（${v.subs.length}条） · ${key.slice(0,22)}`;
+    sel.add(new Option(label,key));
+  });
+  if([...sel.options].some(o=>o.value===prev))sel.value=prev;
+  const info=$("#manualBindVideoInfo");
+  if(info)info.textContent=currentSourceKey?`当前视频：${nativeSourceName||$("#ytUrl").value||currentSourceKey}（已识别）`:'请先加载视频';
+}
+$("#manualBindSubtitle").onclick=function(){
+  const source=$("#manualSubtitleChoice").value;
+  const dest=currentSourceKey;
+  const status=$("#manualBindStatus");
+  if(!dest){status.textContent="请先加载要绑定的视频";return;}
+  const store=readSubtitleStore(),entry=store[source];
+  if(!source||!entry||!Array.isArray(entry.subs)){status.textContent="请先选择字幕记录";return;}
+  const preview=entry.subs.slice(0,3).map(x=>x.text||"").join(" / ").slice(0,180);
+  if(!confirm(`请核对字幕内容：\n${entry.name||"未命名"}，${entry.subs.length}条\n${preview}\n\n确认将这份字幕绑定到当前视频吗？`))return;
+  if(source!==dest && store[dest]&&Array.isArray(store[dest].subs)&&store[dest].subs.length){
+    if(!confirm("当前视频已有保存字幕，继续将替换其绑定。原字幕会先备份到独立记录。"))return;
+    const backupKey=`manual-backup:${dest}:${Date.now()}`;
+    store[backupKey]=structuredClone(store[dest]);
+  }
+  store[dest]={...entry,subs:entry.subs.map(x=>({...x})),savedAt:new Date().toISOString()};
+  try{localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));}
+  catch(e){status.textContent="绑定保存失败：请检查本机存储空间";return;}
+  restoreSavedSubtitles(dest,true);
+  status.textContent=`已绑定 ${subs.length} 条字幕到当前视频`;
+  refreshManualSubtitleChoices();
+};
+setInterval(refreshManualSubtitleChoices,2500);
 function now(){
   if(!playerReady || !player || typeof player.getCurrentTime!=="function") return 0;
   return Number(player.getCurrentTime())||0;
