@@ -2061,6 +2061,7 @@ function ensureNativePlayer(){
 }
 
 function loadNativeVideo(src,key,name,type){
+  clearTimeout(subtitleSaveTimer);
   beginPositionMedia(key);
   cancelSegmentPlay();playSentenceMode=false;
   lastMonitoredTime=null;lastMonitorWallTime=0;
@@ -2078,6 +2079,7 @@ function loadNativeVideo(src,key,name,type){
 }
 
 function createOrLoadVideo(id){
+  clearTimeout(subtitleSaveTimer);
   beginPositionMedia(id);
   playSentenceMode=false;
   lastMonitoredTime=null;lastMonitorWallTime=0;
@@ -2187,6 +2189,7 @@ $("#loadBtn").onclick = function(){
   }
   try{localStorage.setItem(LAST_VIDEO_URL_KEY,currentUrl);}catch(e){}
   savePlaybackPosition(true);
+  clearTimeout(subtitleSaveTimer);
   currentSourceKey=id;currentSourceType="youtube";
   autoSaveCurrentVideo(false);
   restoreSavedSubtitles(id,true);
@@ -2225,8 +2228,20 @@ $("#localVideoFile").onchange=async function(){
         localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
       }
     }
+    // 旧版可能已把错误字幕写入新指纹键：首次加载也必须让用户核对。
+    // 选择取消只跳过加载，不删除任何历史字幕。
+    let selectedKey=key;
+    if(store[key] && Array.isArray(store[key].subs) && store[key].subs.length){
+      const preview=String(store[key].subs.slice(0,2).map(x=>x.text||"").join(" / ")).slice(0,160);
+      const ok=confirm(`找到「${file.name}」关联的 ${store[key].subs.length} 条字幕。\n字幕预览：${preview}\n\n确定：这些字幕正确，恢复使用。\n取消：本次不加载（旧字幕仍保留）。`);
+      if(!ok){
+        selectedKey=key;
+        // 禁止加载错配数据，但保留原始存储。使用本次独立空白会话键。
+        selectedKey=key+":unverified:"+Date.now();
+      }
+    }
     $("#ytUrl").value=`本地媒体：${file.name}`;
-    loadNativeVideo(URL.createObjectURL(file),key,file.name,"local");
+    loadNativeVideo(URL.createObjectURL(file),selectedKey,file.name,"local");
   }catch(e){
     $("#videoStatus").textContent="视频识别失败："+(e&&e.message||e);
   }
@@ -4416,7 +4431,10 @@ try{
   const lastUrl=localStorage.getItem(LAST_VIDEO_URL_KEY)||"";
   if(lastUrl)$("#ytUrl").value=lastUrl;
 }catch(e){}
-restoreSavedSubtitles();
+// 启动时不再把 default/上一个视频的字幕当作当前视频字幕显示。
+// 只有实际打开媒体、识别出专属 key 后才恢复对应字幕。
+subs=[];current=0;currentSubtitleName="";
+renderAll();
 
 let lastTouchEnd = 0;
 document.addEventListener("touchend", function(e){
