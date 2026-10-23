@@ -165,7 +165,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">云同步 V56 · 字幕匹配修复</div>
+<div class="version">云同步 V57 · 字幕记录删除管理</div>
 
 <div class="card">
   <b>☁️ 云同步</b>
@@ -185,6 +185,8 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <div class="small" id="manualBindVideoInfo" style="margin:8px 0">请先加载视频</div>
     <select id="manualSubtitleChoice" aria-label="选择要绑定的字幕"><option value="">选择已保存的字幕</option></select>
     <div class="controls"><button id="manualBindSubtitle" type="button">绑定此视频和字幕</button></div>
+    <div class="controls"><button id="deleteSavedSubtitle" class="secondary" type="button">🗑️ 删除选中的已保存字幕</button></div>
+    <div class="small" style="margin-top:6px">删除选中记录及相关绑定，不删除其他字幕；删除前请先导出完整备份。</div>
     <div id="manualBindStatus" class="status">不再自动弹出旧字幕确认窗口；仅手动绑定。</div>
   </div>
   <div id="cloudStatus" class="status cloud-status warn">尚未登录；网页仍会正常保存在本机</div>
@@ -1028,6 +1030,13 @@ async function subDbPut(key,entry){
   const db=await openSubDb();return new Promise((resolve,reject)=>{
     const tx=db.transaction(SUB_DB_TABLE,"readwrite");
     tx.objectStore(SUB_DB_TABLE).put(entry,key);
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+  });
+}
+async function subDbDelete(key){
+  const db=await openSubDb();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(SUB_DB_TABLE,"readwrite");
+    tx.objectStore(SUB_DB_TABLE).delete(key);
     tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
   });
 }
@@ -2340,6 +2349,40 @@ $("#manualBindSubtitle").onclick=async function(){
   restoreSavedSubtitles(dest,true);
   status.textContent=`已绑定 ${subs.length} 条字幕到当前视频`;
   refreshManualSubtitleChoices();
+};
+$("#deleteSavedSubtitle").onclick=async function(){
+  const key=$("#manualSubtitleChoice").value,status=$("#manualBindStatus");
+  if(!key){status.textContent="请先从下拉列表选择要删除的字幕";return;}
+  const legacy=readSubtitleStore();let entry=legacy[key];
+  if(!entry)try{entry=await subDbGet(key);}catch(e){}
+  if(!entry){status.textContent="字幕记录不存在，请刷新列表";await refreshManualSubtitleChoices();return;}
+  const label=entry.name||"未命名字幕";
+  if(!confirm(`确定删除以下字幕吗？\n\n${label}（${entry.subs?.length||0}条）\n\n会同时解除相关视频绑定。此操作不可撤销。`))return;
+  // 等待之前排队的保存完成，避免刚删除又被异步写回。
+  clearTimeout(subtitleSaveTimer);
+  try{
+    await subWriteSerial.catch(()=>{});
+    const bindings=readSubtitleBindings();
+    const affected=new Set([key]);
+    for(const [video,source] of Object.entries(bindings)){
+      if(source===key){delete bindings[video];affected.add(video);}
+    }
+    // 先删除存储中的实际字幕，再更新索引，防止误删其他视频。
+    await subDbDelete(key);
+    if(Object.prototype.hasOwnProperty.call(legacy,key)){
+      delete legacy[key];localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(legacy));
+    }
+    localStorage.setItem(SUBTITLE_BIND_MAP_KEY,JSON.stringify(bindings));
+    // 当前视频如果使用被删除的字幕，清空屏幕且禁止旧异步恢复覆盖。
+    if(affected.has(subtitleStorageKey())){
+      ++subRestoreToken;subs=[];current=0;currentSubtitleName="";
+      $("#subStatus").textContent="已删除当前关联字幕，请重新导入或绑定";
+      renderAll();
+    }
+    await refreshManualSubtitleChoices();
+    status.textContent=`已删除「${label}」并解除相关绑定；其他字幕保留。`;
+    if(cloudReady&&cloudSession)scheduleCloudSave();
+  }catch(e){status.textContent="删除未完成："+(e?.message||e);}
 };
 setInterval(refreshManualSubtitleChoices,15000);
 function now(){
