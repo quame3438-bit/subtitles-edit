@@ -39,11 +39,6 @@ button.secondary,.filebtn.secondary{background:#eee;color:#222}
 button:disabled{opacity:.45}
 input[type=file]{display:none}
 input[type=text],input[type=email],input[type=password],textarea,select{width:100%;border:1px solid #d7d7db;border-radius:10px;padding:10px;font-size:15px;background:#fff}
-.cloud-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.cloud-grid .wide{grid-column:1/-1}
-.cloud-status{padding:9px 11px;border-radius:10px;background:#f3f3f4;color:#555}
-.cloud-status.ok{background:#e8f7ed;color:#176b35}
-.cloud-status.warn{background:#fff4df;color:#8a5700}
 .urlrow{display:grid;grid-template-columns:1fr auto;gap:8px}
 .ytbox{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin-top:12px}
 #player,#nativePlayer{width:100%;height:100%}
@@ -138,8 +133,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
  .grid textarea{grid-column:1/-1}
  .complete-backup-actions{grid-template-columns:1fr 1fr}
  .complete-backup-actions .import-all{grid-column:1/-1}
- .cloud-grid{grid-template-columns:1fr}
- .cloud-grid .wide{grid-column:auto}
 }
 
 /* 2026-10-01 页面布局调整：只加高“时间字幕播放”的6个按钮 */
@@ -160,28 +153,15 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">云同步 V57 · 字幕记录删除管理</div>
+<div class="version">本机版 · 字幕记录删除管理</div>
 
 <div class="card">
-  <b>☁️ 云同步</b>
-  <div class="cloud-grid" id="cloudLoginPanel">
-    <input id="cloudEmail" type="email" inputmode="email" autocomplete="username" placeholder="邮箱">
-    <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="密码（至少 6 位）">
-    <button id="cloudLogin" type="button">登录并同步</button>
-    <button id="cloudSignup" class="secondary" type="button">第一次使用：注册</button>
-  </div>
-  <div class="controls" id="cloudUserPanel" hidden>
-    <button id="cloudUploadNow" type="button">上传本机数据</button>
-    <button id="cloudDownloadNow" class="secondary" type="button">下载云端数据</button>
-    <button id="cloudLogout" class="secondary" type="button">退出云同步</button>
-  </div>
+  <b>视频与字幕绑定</b>
   <div style="margin-top:12px;padding:10px;background:#f3f3f5;border-radius:12px">
-    <b>视频与字幕绑定</b>
     <div class="small" id="manualBindVideoInfo" style="margin:8px 0">请先加载视频</div>
     <select id="manualSubtitleChoice" aria-label="选择要绑定的字幕"><option value="">选择已保存的字幕</option></select>
     <div class="controls"><button id="manualBindSubtitle" type="button">绑定此视频和字幕</button></div>
@@ -189,10 +169,8 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <div class="small" style="margin-top:6px">删除选中记录及相关绑定，不删除其他字幕；删除前请先导出完整备份。</div>
     <div id="manualBindStatus" class="status">不再自动弹出旧字幕确认窗口；仅手动绑定。</div>
   </div>
-  <div id="cloudStatus" class="status cloud-status warn">尚未登录；网页仍会正常保存在本机</div>
-  <div class="small" style="margin-top:7px">登录同一账号后，视频网址、文件夹、字幕、分段、生词文字和播放设置会在手机、iPad、电脑间同步。本地视频文件和生词图片不上传。</div>
-</div>
 
+</div>
 
 
 
@@ -502,7 +480,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 </div>
 <div class="card">
   <b>🎧 AI 生成英语听力</b>
-  <div class="small" style="margin-top:7px">MP3 只保留在当前设备，不上传云端；英文文字、字幕、时间轴和学习条目信息会自动保存并同步云端。</div>
+  <div class="small" style="margin-top:7px">MP3、英文文字、字幕、时间轴和学习条目信息保存在当前设备。</div>
   <div class="row" style="margin-top:10px">
     <label style="flex:1">听力等级（发声方式）
       <select id="ttsLevel">
@@ -582,7 +560,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
       <label style="flex:1">把选中听力移到<select id="aiMoveFolder"></select></label>
       <button class="secondary" id="aiMoveItem">移动</button>
     </div>
-    <div id="aiListStatus" class="status">还没有 AI 英语听力。生成后会自动出现在这里；换设备登录后列表、文字和字幕会从云端恢复，MP3 需要本机重新导入。</div>
+    <div id="aiListStatus" class="status">还没有 AI 英语听力。生成后会自动出现在这里；换设备可使用完整备份恢复数据。</div>
   </div>
 </div>
 <div class="card" id="pageSearchCard">
@@ -759,16 +737,6 @@ const SENTENCE_PLAY_TIMES_KEY="ytSentencePlayTimes:v1";
 const AI_LIST_KEY="ytAiListeningItems:v1";
 const AI_FOLDER_KEY="ytAiListeningFolders:v1";
 const AI_FOLDER_FILTER_KEY="ytAiListeningFolderFilter:v1";
-const CLOUD_UI_SETTINGS_KEY="ytCloudUiSettings:v1";
-const CLOUD_LOCAL_CHANGED_KEY="ytCloudLocalChangedAt:v1";
-const CLOUD_PROJECT_URL="https://braarnzywbodyfdclodc.supabase.co";
-const CLOUD_PUBLISHABLE_KEY="sb_publishable_JecnrG-198PERwUD5lFhaQ_wc0vV4Lj";
-const CLOUD_TABLE="subtitle_editor_cloud";
-const CLOUD_FIXED_KEYS=new Set([
-  SAVED_VIDEO_KEY,SAVED_VIDEO_FOLDER_KEY,SAVED_VIDEO_FOLDER_FILTER_KEY,LAST_VIDEO_URL_KEY,
-  SUBTITLE_STORE_KEY,SUBTITLE_BIND_MAP_KEY,VIDEO_VOCAB_MAP_KEY,SEGMENT_CAPTION_FONT_KEY,SEGMENT_AUTO_MODE_KEY,
-  SEGMENT_AUTO_INTERVAL_KEY,SENTENCE_AUTO_MODE_KEY,SENTENCE_AUTO_INTERVAL_KEY,SENTENCE_PLAY_TIMES_KEY,"ytVocabBooks:v1",AI_LIST_KEY,AI_FOLDER_KEY,AI_FOLDER_FILTER_KEY,CLOUD_UI_SETTINGS_KEY
-]);
 let segmentCaptionFontSize=Math.max(12,Math.min(36,Number(localStorage.getItem(SEGMENT_CAPTION_FONT_KEY))||16));
 let savedVideos=[];
 let videoFolders=[];
@@ -786,28 +754,6 @@ let vocabRenderToken=0;
 let heldVocabImage=null;
 let vocabImagePressTimer=null;
 let vocabImageLongPressed=false;
-let cloudClient=null;
-let cloudSession=null;
-let cloudReady=false;
-let cloudApplying=false;
-let cloudTracking=false;
-let cloudSaveTimer=null;
-let cloudSaving=false;
-let cloudSaveAgain=false;
-const nativeLocalStorageSet=Storage.prototype.setItem;
-
-function isCloudDataKey(key){
-  return CLOUD_FIXED_KEYS.has(String(key)) || String(key).startsWith("ytSegments:");
-}
-
-Storage.prototype.setItem=function(key,value){
-  nativeLocalStorageSet.call(this,key,value);
-  if(this===localStorage && cloudTracking && !cloudApplying && isCloudDataKey(key)){
-    nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(Date.now()));
-    scheduleCloudSave();
-  }
-};
-
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const pad = (n,l=2)=>String(n).padStart(l,"0");
@@ -2381,7 +2327,6 @@ $("#deleteSavedSubtitle").onclick=async function(){
     }
     await refreshManualSubtitleChoices();
     status.textContent=`已删除「${label}」并解除相关绑定；其他字幕保留。`;
-    if(cloudReady&&cloudSession)scheduleCloudSave();
   }catch(e){status.textContent="删除未完成："+(e?.message||e);}
 };
 setInterval(refreshManualSubtitleChoices,15000);
@@ -3950,306 +3895,6 @@ function startMonitor(){
   },100);
 }
 
-function setCloudStatus(message,tone=""){
-  const el=$("#cloudStatus");
-  if(!el)return;
-  el.textContent=message;
-  el.className="status cloud-status"+(tone?" "+tone:"");
-}
-
-function cloudErrorText(error){
-  const text=String(error&&error.message||error||"");
-  if(/invalid login credentials/i.test(text))return "邮箱或密码不正确";
-  if(/email not confirmed/i.test(text))return "请先打开邮箱中的确认邮件，再回来登录";
-  if(/user already registered/i.test(text))return "这个邮箱已经注册，请直接登录";
-  if(/password/i.test(text)&&/6|characters|short/i.test(text))return "密码至少需要 6 位";
-  if(/failed to fetch|network/i.test(text))return "网络连接失败，请稍后再试";
-  return text||"未知错误";
-}
-
-function updateCloudPanels(){
-  const loggedIn=!!(cloudSession&&cloudSession.user);
-  $("#cloudLoginPanel").hidden=loggedIn;
-  $("#cloudUserPanel").hidden=!loggedIn;
-  if(loggedIn && !cloudReady)setCloudStatus(`已登录 ${cloudSession.user.email||"云账号"}，正在同步…`,"warn");
-}
-
-function parseLocalJson(key,fallback){
-  try{return JSON.parse(localStorage.getItem(key)||"")||fallback;}catch(e){return fallback;}
-}
-
-function collectCloudPayload(){
-  if(subs.length)saveSubtitlesNow();
-  try{localStorage.setItem(segmentStorageKey(),JSON.stringify(videoSegments));}catch(e){}
-  saveCloudUiSettings(false);
-  const values={};
-  for(let i=0;i<localStorage.length;i++){
-    const key=localStorage.key(i);
-    if(!key||!isCloudDataKey(key)||key===CLOUD_LOCAL_CHANGED_KEY)continue;
-    if(key.startsWith("ytSegments:local:"))continue;
-    const raw=localStorage.getItem(key);
-    if(raw!==null)values[key]=raw;
-  }
-
-  try{
-    const list=JSON.parse(values[SAVED_VIDEO_KEY]||"[]");
-    values[SAVED_VIDEO_KEY]=JSON.stringify((Array.isArray(list)?list:[]).filter(v=>!String(v&&v.url||"").startsWith("local:")));
-  }catch(e){values[SAVED_VIDEO_KEY]="[]";}
-  try{
-    const store=JSON.parse(values[SUBTITLE_STORE_KEY]||"{}");
-    Object.keys(store).forEach(key=>{if(key.startsWith("local:"))delete store[key];});
-    values[SUBTITLE_STORE_KEY]=JSON.stringify(store);
-  }catch(e){values[SUBTITLE_STORE_KEY]="{}";}
-  try{
-    const map=JSON.parse(values[VIDEO_VOCAB_MAP_KEY]||"{}");
-    Object.keys(map).forEach(key=>{if(key.startsWith("local:"))delete map[key];});
-    values[VIDEO_VOCAB_MAP_KEY]=JSON.stringify(map);
-  }catch(e){values[VIDEO_VOCAB_MAP_KEY]="{}";}
-  try{
-    const books=JSON.parse(values[VOCAB_BOOK_KEY]||"[]");
-    for(const book of Array.isArray(books)?books:[]){
-      for(const entry of Array.isArray(book.entries)?book.entries:[])entry.imageIds=[];
-    }
-    values[VOCAB_BOOK_KEY]=JSON.stringify(Array.isArray(books)?books:[]);
-  }catch(e){values[VOCAB_BOOK_KEY]="[]";}
-  if(String(values[LAST_VIDEO_URL_KEY]||"").replace(/^"|"$/g,"").startsWith("local:"))values[LAST_VIDEO_URL_KEY]="";
-
-  return {type:"subtitle-editor-cloud",version:1,values};
-}
-
-async function applyCloudPayload(payload){
-  if(!payload||payload.type!=="subtitle-editor-cloud"||!payload.values)throw new Error("云端数据格式不正确");
-  const values=payload.values;
-  cloudApplying=true;
-  try{
-    const localVideos=parseLocalJson(SAVED_VIDEO_KEY,[]).filter(v=>String(v&&v.url||"").startsWith("local:"));
-    const localSubtitleStore=parseLocalJson(SUBTITLE_STORE_KEY,{});
-    const localVocabMap=parseLocalJson(VIDEO_VOCAB_MAP_KEY,{});
-    const localVocabBooks=parseLocalJson(VOCAB_BOOK_KEY,[]);
-    const localImageIds=new Map();
-    for(const book of Array.isArray(localVocabBooks)?localVocabBooks:[]){
-      for(const entry of Array.isArray(book.entries)?book.entries:[]){
-        if(entry&&entry.id)localImageIds.set(String(entry.id),Array.isArray(entry.imageIds)?entry.imageIds:[]);
-      }
-    }
-
-    for(let i=localStorage.length-1;i>=0;i--){
-      const key=localStorage.key(i);
-      if(key&&key.startsWith("ytSegments:")&&!key.startsWith("ytSegments:local:"))localStorage.removeItem(key);
-    }
-    for(const [key,rawValue] of Object.entries(values)){
-      if(!isCloudDataKey(key)||key.startsWith("ytSegments:local:"))continue;
-      let raw=String(rawValue??"");
-      if(key===SAVED_VIDEO_KEY){
-        let cloudVideos=[];try{cloudVideos=JSON.parse(raw)||[];}catch(e){}
-        raw=JSON.stringify([...(Array.isArray(cloudVideos)?cloudVideos:[]),...localVideos]);
-      }else if(key===SUBTITLE_STORE_KEY){
-        let cloudStore={};try{cloudStore=JSON.parse(raw)||{};}catch(e){}
-        Object.entries(localSubtitleStore).forEach(([id,item])=>{if(id.startsWith("local:"))cloudStore[id]=item;});
-        raw=JSON.stringify(cloudStore);
-      }else if(key===VIDEO_VOCAB_MAP_KEY){
-        let cloudMap={};try{cloudMap=JSON.parse(raw)||{};}catch(e){}
-        Object.entries(localVocabMap).forEach(([id,bookId])=>{if(id.startsWith("local:"))cloudMap[id]=bookId;});
-        raw=JSON.stringify(cloudMap);
-      }else if(key===VOCAB_BOOK_KEY){
-        let books=[];try{books=JSON.parse(raw)||[];}catch(e){}
-        for(const book of Array.isArray(books)?books:[]){
-          for(const entry of Array.isArray(book.entries)?book.entries:[]){
-            entry.imageIds=localImageIds.get(String(entry&&entry.id||""))||[];
-          }
-        }
-        raw=JSON.stringify(books);
-      }
-      nativeLocalStorageSet.call(localStorage,key,raw);
-    }
-
-    readVideoFolders();readSavedVideos();renderVideoFolderControls();renderSavedVideos();
-    readAiLibrary();renderAiLibrary();
-    readVocabBooks();await renderVocabBooks();
-    const restoredUrl=localStorage.getItem(LAST_VIDEO_URL_KEY)||"";
-    // 云同步不自动填写上次视频网址；需要用户主动选择视频。
-    $("#ytUrl").value="";
-    restoreCloudUiSettings();
-    switchVocabBookForVideo(restoredUrl||activeVideoKey(),false);
-    // 尚未主动打开视频，禁止根据上次 URL 或旧 currentSourceKey 加载字幕。
-    currentSourceKey="";
-    subs=[];current=0;currentSubtitleName="";
-    $("#subStatus").textContent="请先打开视频，再加载该视频的字幕";
-    loadSegmentsFromLocal();renderAll();
-  }finally{cloudApplying=false;}
-}
-
-function saveCloudUiSettings(markChanged=true){
-  const settings={
-    speed:$("#speed").value,rewindStep:$("#rewindStep").value,forwardStep:$("#forwardStep").value,
-    msStep:$("#msStep").value,segmentMsStep:$("#segmentMsStep").value
-  };
-  const oldTracking=cloudTracking;
-  if(!markChanged)cloudTracking=false;
-  try{localStorage.setItem(CLOUD_UI_SETTINGS_KEY,JSON.stringify(settings));}catch(e){}
-  cloudTracking=oldTracking;
-}
-
-function restoreCloudUiSettings(){
-  const s=parseLocalJson(CLOUD_UI_SETTINGS_KEY,{});
-  for(const id of ["speed","rewindStep","forwardStep","msStep","segmentMsStep"]){
-    if(s[id]!==undefined && [...$("#"+id).options].some(o=>o.value===String(s[id])))$("#"+id).value=String(s[id]);
-  }
-}
-
-function scheduleCloudSave(){
-  if(!cloudReady||!cloudSession)return;
-  clearTimeout(cloudSaveTimer);
-  cloudSaveTimer=null;
-  if(cloudSaving){
-    cloudSaveAgain=true;
-    setCloudStatus("正在上传云端…","warn");
-    return;
-  }
-  cloudSaveTimer=setTimeout(()=>saveCloudNow(false),1400);
-  setCloudStatus("本机已保存，等待上传云端…","warn");
-}
-
-async function saveCloudNow(showNotice=true){
-  if(!cloudClient||!cloudSession)return false;
-  if(cloudSaving){cloudSaveAgain=true;return false;}
-  cloudSaving=true;
-  clearTimeout(cloudSaveTimer);
-  cloudSaveTimer=null;
-  try{
-    if(showNotice)setCloudStatus("正在上传本机数据…","warn");
-    const now=new Date().toISOString();
-    const previousApplying=cloudApplying;
-    let payload;
-    cloudApplying=true;
-    try{payload=collectCloudPayload();}
-    finally{cloudApplying=previousApplying;}
-    const row={user_id:cloudSession.user.id,payload,client_updated_at:now,updated_at:now};
-    const {error}=await cloudClient.from(CLOUD_TABLE).upsert(row,{onConflict:"user_id"});
-    if(error)throw error;
-    nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(Date.parse(now)));
-    setCloudStatus(`已上传云端 · ${new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}`,"ok");
-    return true;
-  }catch(error){
-    setCloudStatus("云同步失败："+cloudErrorText(error),"warn");
-    return false;
-  }finally{
-    cloudSaving=false;
-    if(cloudSaveAgain){cloudSaveAgain=false;scheduleCloudSave();}
-  }
-}
-
-async function fetchCloudRow(){
-  const {data,error}=await cloudClient.from(CLOUD_TABLE)
-    .select("payload,client_updated_at,updated_at").eq("user_id",cloudSession.user.id).maybeSingle();
-  if(error)throw error;
-  return data;
-}
-
-async function downloadCloudNow(ask=false){
-  if(!cloudSession)return;
-  if(ask&&!confirm("确定用云端数据更新本机吗？本机的视频文件和生词图片会保留。"))return;
-  try{
-    setCloudStatus("正在下载云端数据…","warn");
-    const row=await fetchCloudRow();
-    if(!row){setCloudStatus("云端还没有数据，请先上传本机数据","warn");return;}
-    await applyCloudPayload(row.payload);
-    const syncedAt=Date.parse(row.client_updated_at||row.updated_at)||Date.now();
-    nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(syncedAt));
-    setCloudStatus("云端数据已下载到本机","ok");
-  }catch(error){setCloudStatus("下载失败："+cloudErrorText(error),"warn");}
-}
-
-async function startCloudSession(session){
-  cloudSession=session;cloudReady=false;cloudTracking=false;updateCloudPanels();
-  try{
-    const row=await fetchCloudRow();
-    if(row){
-      const cloudAt=Date.parse(row.client_updated_at||row.updated_at)||0;
-      const localAt=Number(localStorage.getItem(CLOUD_LOCAL_CHANGED_KEY))||0;
-      if(localAt>cloudAt+1000)await saveCloudNow(false);
-      else{
-        await applyCloudPayload(row.payload);
-        nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(cloudAt||Date.now()));
-      }
-    }else await saveCloudNow(false);
-    cloudReady=true;cloudTracking=true;
-    setCloudStatus(`已登录并同步 · ${session.user.email||"云账号"}`,"ok");
-  }catch(error){
-    cloudReady=true;cloudTracking=true;
-    setCloudStatus("登录成功，但同步失败："+cloudErrorText(error),"warn");
-  }
-}
-
-async function initCloudSync(){
-  restoreCloudUiSettings();
-  ["speed","rewindStep","forwardStep","msStep","segmentMsStep"].forEach(id=>{
-    $("#"+id).addEventListener("change",()=>saveCloudUiSettings(true));
-  });
-  if(!window.supabase||!window.supabase.createClient){setCloudStatus("云同步组件加载失败，请检查网络","warn");return;}
-  cloudClient=window.supabase.createClient(CLOUD_PROJECT_URL,CLOUD_PUBLISHABLE_KEY,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
-  });
-  const {data,error}=await cloudClient.auth.getSession();
-  if(error)setCloudStatus("读取登录状态失败："+cloudErrorText(error),"warn");
-  if(data&&data.session)await startCloudSession(data.session);
-  else{cloudTracking=true;updateCloudPanels();}
-
-  cloudClient.auth.onAuthStateChange((event,session)=>{
-    if(event==="SIGNED_OUT"){
-      cloudSession=null;cloudReady=false;cloudTracking=true;updateCloudPanels();
-      setCloudStatus("已退出云同步；网页仍会保存在本机","warn");
-    }
-  });
-}
-
-$("#cloudLogin").onclick=async function(){
-  if(!cloudClient){setCloudStatus("云同步组件还没有加载，请刷新网页重试","warn");return;}
-  const email=$("#cloudEmail").value.trim();
-  const password=$("#cloudPassword").value;
-  if(!email||password.length<6){setCloudStatus("请输入邮箱和至少 6 位密码","warn");return;}
-  setCloudStatus("正在登录…","warn");
-  const {data,error}=await cloudClient.auth.signInWithPassword({email,password});
-  if(error){setCloudStatus("登录失败："+cloudErrorText(error),"warn");return;}
-  await startCloudSession(data.session);
-};
-
-$("#cloudSignup").onclick=async function(){
-  if(!cloudClient){setCloudStatus("云同步组件还没有加载，请刷新网页重试","warn");return;}
-  const email=$("#cloudEmail").value.trim();
-  const password=$("#cloudPassword").value;
-  if(!email||password.length<6){setCloudStatus("请输入邮箱和至少 6 位密码","warn");return;}
-  setCloudStatus("正在注册…","warn");
-  const {data,error}=await cloudClient.auth.signUp({email,password});
-  if(error){setCloudStatus("注册失败："+cloudErrorText(error),"warn");return;}
-  if(data.session)await startCloudSession(data.session);
-  else setCloudStatus("注册邮件已发送：请打开邮箱确认，然后回来登录","ok");
-};
-
-$("#cloudUploadNow").onclick=async function(){
-  if(confirm("确定用本机数据覆盖云端吗？"))await saveCloudNow(true);
-};
-$("#cloudDownloadNow").onclick=()=>downloadCloudNow(true);
-$("#cloudLogout").onclick=async function(){
-  if(cloudClient)await cloudClient.auth.signOut();
-};
-window.addEventListener("online",()=>{if(cloudReady)scheduleCloudSave();});
-document.addEventListener("visibilitychange",async()=>{
-  if(document.visibilityState!=="visible"){
-    if(cloudReady&&!cloudSaving)saveCloudNow(false);
-    return;
-  }
-  if(!cloudReady||cloudSaving)return;
-  try{
-    const row=await fetchCloudRow();
-    const cloudAt=row?(Date.parse(row.client_updated_at||row.updated_at)||0):0;
-    const localAt=Number(localStorage.getItem(CLOUD_LOCAL_CHANGED_KEY))||0;
-    if(row&&cloudAt>localAt+1000)await downloadCloudNow(false);
-  }catch(e){}
-});
-
-
-
 const TTS_ENDPOINT="https://braarnzywbodyfdclodc.supabase.co/functions/v1/tts";
 let ttsMp3Blob=null;
 let ttsMp3Name="英语听力.mp3";
@@ -4598,7 +4243,6 @@ function updateBuildTime(){
 }
 updateBuildTime();
 renderAll();
-initCloudSync();
 
 // Bottom full-subtitle search
 (function(){
