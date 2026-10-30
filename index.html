@@ -151,6 +151,10 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 #cueRewind{grid-column:1;grid-row:2}#cueForward{grid-column:3;grid-row:2}
 .ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
 .ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
+/* 谐音区域与当前字幕显示区域等高 */
+.phonetic-area{margin-top:12px}
+.phonetic-area b{display:block;margin-bottom:8px}
+#phoneticInput{display:block;width:100%;height:144px;min-height:144px;resize:vertical;font-size:22px;line-height:1.35;padding:12px 8px;white-space:pre-wrap}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -213,12 +217,8 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
-  <div class="controls" id="ytTroubleshoot" style="display:none">
-    <button type="button" id="ytRetryStandard" class="secondary">标准嵌入重试</button>
-    <button type="button" id="ytRetryPrivacy" class="secondary">隐私增强嵌入重试</button>
-    <button type="button" id="ytOpenOriginal" class="secondary">YouTube 原网页</button>
-  </div>
-  <div id="ytTroubleshootInfo" class="small" style="display:none;margin-top:8px">两种嵌入方式均使用 YouTube 官方播放器。若仍要求登录或提示 150，网页无法绕过 YouTube 的播放验证；可在原网页观看，或导入本地视频配合字幕。</div>
+  <div class="phonetic-area"><b>谐音输入框</b><textarea id="phoneticInput" placeholder="输入当前字幕的谐音，切换句子自动保存和恢复" aria-label="当前字幕谐音"></textarea></div>
+
 </div>
 
 <div class="card">
@@ -2140,10 +2140,7 @@ function loadNativeVideo(src,key,name,type){
 
 let ytEmbedHost="https://www.youtube.com";
 let ytPendingId="";
-function showYtTroubleshoot(){
-  $("#ytTroubleshoot").style.display="flex";
-  $("#ytTroubleshootInfo").style.display="block";
-}
+function showYtTroubleshoot(){}
 function rebuildYouTube(host){
   const id=extractId($("#ytUrl").value)||currentSourceKey;
   if(!id){$("#videoStatus").textContent="请先加载 YouTube 视频";return;}
@@ -2153,12 +2150,6 @@ function rebuildYouTube(host){
   const box=$("#player");box.innerHTML="";
   createOrLoadVideo(id);
 }
-$("#ytRetryStandard").addEventListener("click",()=>rebuildYouTube("https://www.youtube.com"));
-$("#ytRetryPrivacy").addEventListener("click",()=>rebuildYouTube("https://www.youtube-nocookie.com"));
-$("#ytOpenOriginal").addEventListener("click",()=>{
-  const id=extractId($("#ytUrl").value)||currentSourceKey;
-  if(id)window.open("https://www.youtube.com/watch?v="+encodeURIComponent(id),"_blank","noopener,noreferrer");
-});
 function createOrLoadVideo(id){
   showYtTroubleshoot();
   clearTimeout(subtitleSaveTimer);
@@ -3307,7 +3298,30 @@ window.addEventListener("resize",scheduleSubtitleFit);
 if(document.fonts?.ready)document.fonts.ready.then(scheduleSubtitleFit);
 scheduleSubtitleFit();
 
+// 谐音按视频及字幕时间单独保存，切换字幕自动恢复。
+const PHONETIC_STORAGE_KEY="ytPhoneticNotes:v1";
+let phoneticLastKey="";
+function phoneticKey(){
+  const cue=subs[current];
+  if(!cue)return "";
+  return (currentSourceKey||"未命名视频")+"|"+(currentSubtitleName||"字幕")+"|"+Number(cue.start).toFixed(3)+"|"+Number(cue.end).toFixed(3);
+}
+function readPhoneticNotes(){try{return JSON.parse(localStorage.getItem(PHONETIC_STORAGE_KEY)||"{}")||{};}catch(e){return {};}}
+function savePhoneticNote(){
+  if(!phoneticLastKey)return;
+  const notes=readPhoneticNotes(),value=document.getElementById("phoneticInput").value;
+  if(value)notes[phoneticLastKey]=value;else delete notes[phoneticLastKey];
+  try{localStorage.setItem(PHONETIC_STORAGE_KEY,JSON.stringify(notes));}catch(e){}
+}
+document.getElementById("phoneticInput").addEventListener("input",savePhoneticNote);
+function syncPhoneticNote(){
+  const key=phoneticKey();
+  if(key===phoneticLastKey)return;
+  phoneticLastKey=key;
+  document.getElementById("phoneticInput").value=key?(readPhoneticNotes()[key]||""):"";
+}
 function updateTop(){
+  syncPhoneticNote();
   updateSegmentPlayCount();
   $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
   const subtitleEl=$("#currentSubtitle");
