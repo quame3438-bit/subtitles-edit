@@ -155,6 +155,13 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .phonetic-area{margin-top:12px}
 .phonetic-area b{display:block;margin-bottom:8px}
 #phoneticInput{display:block;width:100%;height:144px;min-height:144px;resize:vertical;font-size:22px;line-height:1.35;padding:12px 8px;white-space:pre-wrap}
+
+/* 模块排序：仅长按标题右侧的移动手柄，不干扰播放器和输入框 */
+.card-collapse-toggle{min-height:35px}
+.card-move-handle{margin-left:auto;flex:0 0 48px;width:48px;min-height:35px;display:flex;align-items:center;justify-content:center;border:1px solid #ddd;border-radius:9px;background:#f5f5f7;color:#555;font-size:22px;line-height:1;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab}
+.card-move-handle:active{cursor:grabbing}
+.card.card-moving{opacity:.58;outline:2px dashed #555;box-shadow:0 5px 22px #0002}
+body.module-sort-active{user-select:none;-webkit-user-select:none}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -253,11 +260,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
 </div>
 
-<div class="card">
-  <div class="row">
-    <b style="flex:1">4. 编辑字幕</b>
-    <button id="exportBtn">导出 SRT</button>
-  </div>
+<div class="card" id="subtitleTimeAdjustCard"><b>字幕时间调整</b>
   <div class="row" style="margin-top:10px">
     <label style="flex:1">每次调整（毫秒）<select id="msStep"></select></label>
   </div>
@@ -277,6 +280,10 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button class="secondary" id="shiftRangeEarlier">指定范围时间向前</button>
     <button class="secondary" id="shiftRangeLater">指定范围时间向后</button>
   </div>
+  <div id="subtitleShiftStatus" class="status" aria-live="polite"></div>
+</div>
+
+<div class="card" id="subtitleSplitCard"><b>字幕分割与合并</b>
   <div class="controls" id="splitActionControls">
     <button type="button" class="secondary" id="splitCueBtn">分割</button>
     <button type="button" class="secondary" id="splitMergeNextBtn">分割并合并到下一句</button>
@@ -289,11 +296,12 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button type="button" class="secondary" id="splitUndoBtn">撤销</button>
   </div>
   <div id="splitStatus" class="status">尚未进行分割</div>
-  <div id="subtitleShiftStatus" class="status" aria-live="polite"></div>
-  <div id="list" class="subtitle-strip"></div>
 </div>
 
-
+<div class="card" id="subtitleEditCard">
+  <div class="row"><b style="flex:1">编辑字幕</b><button id="exportBtn">导出 SRT</button></div>
+  <div id="list" class="subtitle-strip"></div>
+</div>
 
 <div class="card">
   <b>全部数据导出与恢复</b>
@@ -658,11 +666,19 @@ function initCollapsibleCards(){
     }
 
     const id="card_"+index+"_"+title.replace(/[^\w\u4e00-\u9fff]+/g,"_").slice(0,24);
+    card.dataset.moduleOrderId=id;
     const toggle=document.createElement("button");
     toggle.type="button";
     toggle.className="card-collapse-toggle";
     toggle.innerHTML='<span class="triangle">▼</span><span class="collapse-title"></span>';
     toggle.querySelector(".collapse-title").textContent=title;
+    const handle=document.createElement("span");
+    handle.className="card-move-handle";
+    handle.textContent="⠿";
+    handle.title="长按拖动，调整模块位置";
+    handle.setAttribute("aria-label","长按拖动调整模块位置");
+    handle.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();});
+    toggle.appendChild(handle);
 
     const content=document.createElement("div");
     content.className="collapsible-content";
@@ -685,7 +701,8 @@ function initCollapsibleCards(){
       toggle.setAttribute("aria-expanded","true");
     }
 
-    toggle.addEventListener("click",()=>{
+    toggle.addEventListener("click",e=>{
+      if(e.target.closest(".card-move-handle"))return;
       const collapsed=card.classList.toggle("collapsed");
       toggle.setAttribute("aria-expanded",collapsed?"false":"true");
       saved[id]=collapsed;
@@ -694,7 +711,75 @@ function initCollapsibleCards(){
   });
 }
 
-document.addEventListener("DOMContentLoaded",initCollapsibleCards);
+const MODULE_ORDER_KEY="ytModuleOrder:v1";
+function restoreModuleOrder(){
+  const wrap=document.querySelector(".wrap");
+  let ids=[];
+  try{ids=JSON.parse(localStorage.getItem(MODULE_ORDER_KEY)||"[]");}catch(e){}
+  if(!Array.isArray(ids))ids=[];
+  // 使用原始模块序号作为稳定 ID；只调整模块 DOM 位置，不重建播放器。
+  const cards=Array.from(wrap.querySelectorAll(":scope > .card"));
+  cards.forEach((c,i)=>c.dataset.originalModuleIndex=String(i));
+  const byIndex=new Map(cards.map(c=>[c.dataset.originalModuleIndex,c]));
+  const ordered=ids.map(x=>byIndex.get(String(x))).filter(Boolean);
+  cards.forEach(c=>{if(!ordered.includes(c))ordered.push(c);});
+  const anchor=document.createComment("module-order-anchor");
+  if(cards.length){wrap.insertBefore(anchor,cards[0]);ordered.forEach(c=>wrap.insertBefore(c,anchor));anchor.remove();}
+}
+function initModuleDrag(){
+  const wrap=document.querySelector(".wrap");
+  let state=null;
+  function save(){
+    const ids=Array.from(wrap.querySelectorAll(":scope > .card")).map(c=>c.dataset.originalModuleIndex);
+    try{localStorage.setItem(MODULE_ORDER_KEY,JSON.stringify(ids));}catch(e){}
+  }
+  wrap.querySelectorAll(":scope > .card").forEach(card=>{
+    const handle=card.querySelector(":scope > .card-collapse-toggle .card-move-handle");
+    if(!handle)return;
+    handle.addEventListener("pointerdown",e=>{
+      if(e.button!==undefined&&e.button!==0)return;
+      e.preventDefault();e.stopPropagation();
+      const startY=e.clientY;
+      state={card,handle,id:e.pointerId,startY,y:startY,active:false,timer:null};
+      handle.setPointerCapture(e.pointerId);
+      state.timer=setTimeout(()=>{
+        if(!state||state.id!==e.pointerId)return;
+        state.active=true;
+        card.classList.add("card-moving");
+        document.body.classList.add("module-sort-active");
+        if(navigator.vibrate)navigator.vibrate(35);
+      },420);
+    });
+    handle.addEventListener("pointermove",e=>{
+      if(!state||state.id!==e.pointerId)return;
+      e.preventDefault();state.y=e.clientY;
+      if(!state.active){if(Math.abs(e.clientY-state.startY)>12){clearTimeout(state.timer);state=null;}return;}
+      if(e.clientY<65)window.scrollBy(0,-18);
+      else if(e.clientY>window.innerHeight-75)window.scrollBy(0,18);
+      const others=Array.from(wrap.querySelectorAll(":scope > .card")).filter(c=>c!==card);
+      const target=others.find(c=>e.clientY<c.getBoundingClientRect().top+c.getBoundingClientRect().height/2);
+      if(target)wrap.insertBefore(card,target);
+      else if(others.length)wrap.insertBefore(card,others[others.length-1].nextSibling);
+    });
+    const stop=e=>{
+      if(!state||state.id!==e.pointerId)return;
+      clearTimeout(state.timer);
+      const active=state.active;
+      card.classList.remove("card-moving");
+      document.body.classList.remove("module-sort-active");
+      if(active)save();
+      state=null;
+    };
+    handle.addEventListener("pointerup",stop);
+    handle.addEventListener("pointercancel",stop);
+    handle.addEventListener("contextmenu",e=>e.preventDefault());
+  });
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  restoreModuleOrder();
+  initCollapsibleCards();
+  initModuleDrag();
+});
 document.addEventListener("DOMContentLoaded",()=>{
   const input=document.getElementById("generalWebUrl"), status=document.getElementById("generalWebStatus");
   const frame=document.getElementById("generalWebFrame"), panel=document.getElementById("embeddedWebPanel");
