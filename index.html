@@ -152,7 +152,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
 .ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
 </style>
-<script src="https://www.youtube.com/iframe_api" async></script>
+<script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 <div class="wrap">
@@ -213,8 +213,12 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
-  <div class="controls" id="youtubeRecoveryTools" hidden><button class="secondary" id="youtubeRetry" type="button">重新建立 YouTube 播放器</button><button class="secondary" id="youtubeOpenOriginal" type="button">在 YouTube 原网页播放</button></div>
-  <div id="youtubeRecoveryHint" class="small" hidden style="margin-top:6px"></div>
+  <div class="controls" id="ytTroubleshoot" style="display:none">
+    <button type="button" id="ytRetryStandard" class="secondary">标准嵌入重试</button>
+    <button type="button" id="ytRetryPrivacy" class="secondary">隐私增强嵌入重试</button>
+    <button type="button" id="ytOpenOriginal" class="secondary">YouTube 原网页</button>
+  </div>
+  <div id="ytTroubleshootInfo" class="small" style="display:none;margin-top:8px">两种嵌入方式均使用 YouTube 官方播放器。若仍要求登录或提示 150，网页无法绕过 YouTube 的播放验证；可在原网页观看，或导入本地视频配合字幕。</div>
 </div>
 
 <div class="card">
@@ -2011,30 +2015,10 @@ $("#importCompleteJson").onchange=async function(){
   }finally{this.value="";}
 };
 
-let pendingYoutubeId=null;
 window.onYouTubeIframeAPIReady = function(){
-  if(pendingYoutubeId){const id=pendingYoutubeId;pendingYoutubeId=null;createOrLoadVideo(id);}
-  else if(currentSourceType==="youtube"&&!playerReady)$("#videoStatus").textContent = "YouTube 播放器已准备，可粘贴链接";
+  if(ytPendingId){const id=ytPendingId;ytPendingId="";createOrLoadVideo(id);return;}
+  if(currentSourceType==="youtube"&&!playerReady)$("#videoStatus").textContent = "YouTube 播放器已准备，可粘贴链接";
 };
-function youtubeRecovery(message, failed=false){
-  const tools=$("#youtubeRecoveryTools"),hint=$("#youtubeRecoveryHint");
-  tools.hidden=!currentSourceKey||currentSourceType!=="youtube";
-  hint.hidden=!failed;
-  hint.textContent=failed?"如出现登录验证或错误150，可能是 YouTube 拒绝当前嵌入环境。重新建立播放器只能排除初始化故障，无法解除平台限制；原网页播放不能与此页字幕自动同步。":"";
-  if(message)$("#videoStatus").textContent=message;
-}
-$("#youtubeRetry").addEventListener("click",()=>{
-  const id=currentSourceType==="youtube"?currentSourceKey:extractId($("#ytUrl").value);
-  if(!id)return;
-  try{youtubePlayer?.destroy?.();}catch(e){}
-  youtubePlayer=null;player=null;playerReady=false;setPlayerEnabled(false);
-  $("#player").replaceChildren();
-  createOrLoadVideo(id);
-});
-$("#youtubeOpenOriginal").addEventListener("click",()=>{
-  const id=currentSourceType==="youtube"?currentSourceKey:extractId($("#ytUrl").value);
-  if(id)window.open("https://www.youtube.com/watch?v="+encodeURIComponent(id),"_blank","noopener,noreferrer");
-});
 
 function hideYouTubeControlsAfterPlay(){
   const moveFocusOut=()=>{
@@ -2154,9 +2138,29 @@ function loadNativeVideo(src,key,name,type){
   video.play().catch(()=>{$("#videoStatus").textContent=type==="audio"?"MP3 已加载，请点下方播放按钮":"视频已选择，请点下方播放按钮";});
 }
 
+let ytEmbedHost="https://www.youtube.com";
+let ytPendingId="";
+function showYtTroubleshoot(){
+  $("#ytTroubleshoot").style.display="flex";
+  $("#ytTroubleshootInfo").style.display="block";
+}
+function rebuildYouTube(host){
+  const id=extractId($("#ytUrl").value)||currentSourceKey;
+  if(!id){$("#videoStatus").textContent="请先加载 YouTube 视频";return;}
+  ytEmbedHost=host;
+  try{if(youtubePlayer&&typeof youtubePlayer.destroy==="function")youtubePlayer.destroy();}catch(e){}
+  youtubePlayer=null;player=null;playerReady=false;setPlayerEnabled(false);
+  const box=$("#player");box.innerHTML="";
+  createOrLoadVideo(id);
+}
+$("#ytRetryStandard").addEventListener("click",()=>rebuildYouTube("https://www.youtube.com"));
+$("#ytRetryPrivacy").addEventListener("click",()=>rebuildYouTube("https://www.youtube-nocookie.com"));
+$("#ytOpenOriginal").addEventListener("click",()=>{
+  const id=extractId($("#ytUrl").value)||currentSourceKey;
+  if(id)window.open("https://www.youtube.com/watch?v="+encodeURIComponent(id),"_blank","noopener,noreferrer");
+});
 function createOrLoadVideo(id){
-  if(!(window.YT && YT.Player)){pendingYoutubeId=id;youtubeRecovery("YouTube 播放器 API 尚未加载，等待加载完成后自动打开…");return;}
-  youtubeRecovery("正在连接 YouTube 播放器…");
+  showYtTroubleshoot();
   clearTimeout(subtitleSaveTimer);
   beginPositionMedia(id);
   playSentenceMode=false;
@@ -2169,14 +2173,15 @@ function createOrLoadVideo(id){
     videoSegments=[];
     selectedSegmentIndex=-1;
     renderSegments();
-    player=youtubePlayer;playerReady=false;setPlayerEnabled(false);
-    youtubePlayer.loadVideoById({videoId:id,startSeconds:savedPlaybackPosition()});
+    player=youtubePlayer;playerReady=true;
+    youtubePlayer.cueVideoById({videoId:id,startSeconds:savedPlaybackPosition()});
     $("#videoStatus").textContent="正在加载视频…";
     recoverPlayerControls();
     setTimeout(()=>{recoverPlayerControls();loadSegmentsFromLocal();},700);
     return;
   }
   youtubePlayer = new YT.Player("player",{
+    host:ytEmbedHost,
     videoId:id,
     playerVars:{
       start:savedPlaybackPosition(),
@@ -2185,14 +2190,14 @@ function createOrLoadVideo(id){
       disablekb:1,
       rel:0,
       modestbranding:1,
-      ...(location.protocol==="https:"||location.protocol==="http:"?{origin:location.origin}:{})
+      ...(location.protocol==="https:"?{origin:location.origin}:{})
     },
     events:{
       onReady:function(){
         player=youtubePlayer;
         playerReady=true;
         setPlayerEnabled(true);
-        youtubeRecovery("播放器已连接；若画面要求登录，请尝试原网页或重新建立播放器。");
+        $("#videoStatus").textContent="视频已加载";
         applySpeed();
         startMonitor();
         loadSegmentsFromLocal();
@@ -2232,7 +2237,7 @@ function createOrLoadVideo(id){
         if(currentSourceType!=="youtube")return;
         playerReady=false;
         setPlayerEnabled(false);
-        youtubeRecovery("YouTube 嵌入播放失败（错误 "+e.data+"）。可尝试重新建立播放器或在原网页播放。",true);
+        $("#videoStatus").textContent="YouTube 嵌入播放错误 "+e.data+"。可尝试下方另一种官方嵌入方式；若仍失败，请用原网页或本地视频。";
       }
     }
   });
@@ -2259,6 +2264,11 @@ $("#loadBtn").onclick = function(){
   }
   if(!id){
     alert("没有识别到有效的 YouTube 链接或视频直链");
+    return;
+  }
+  if(!(window.YT && YT.Player)){
+    ytPendingId=id;
+    $("#videoStatus").textContent="正在等待 YouTube 官方接口加载，加载完成后会自动打开…";
     return;
   }
   try{localStorage.setItem(LAST_VIDEO_URL_KEY,currentUrl);}catch(e){}
