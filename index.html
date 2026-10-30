@@ -280,6 +280,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div class="controls" id="splitActionControls">
     <button type="button" class="secondary" id="splitCueBtn">分割</button>
     <button type="button" class="secondary" id="splitMergeNextBtn">分割并合并到下一句</button>
+    <button type="button" class="secondary" id="splitMergePrevBtn">分割与上一句合并</button>
     <button type="button" class="secondary" id="mergeCurrentNextBtn">与下一句合并</button>
   </div>
   <div class="small" style="margin-top:7px">先在下方字幕文本中点击要分割的位置，再播放到分割时间点（也可暂停定位）；可反复分割，最后统一点完成。中英文双语行会按相同比例分割。</div>
@@ -3451,6 +3452,32 @@ document.getElementById('mergeCurrentNextBtn').onclick=()=>{
   cancelSentencePlay();
   renderAll();
   splitStatus(`已暂存第 ${i+1} 句与下一句合并；累计 ${splitUndoHistory.length} 步，点击“完成”统一保存，可连续撤销。`);
+};
+// 分割当前句，将前半部分合并到上一句；后半部分保留为独立的当前句。
+document.getElementById('splitMergePrevBtn').onclick=()=>{
+  if(!subs.length){splitStatus('请先导入字幕');return;}
+  const selected=splitRowAtCaret();
+  const i=Number.isInteger(selected.index)&&subs[selected.index]?selected.index:current;
+  if(i<=0){splitStatus('当前已经是第一句，没有上一句可以合并');return;}
+  const cue=subs[i];
+  if(!cue||cue.end-cue.start<.12){splitStatus('当前句时间太短，无法分割');return;}
+  const t=now();
+  if(!playerReady||t<=cue.start+.05||t>=cue.end-.05){splitStatus('请先播放到本句内部的分割时间点，再暂停点击分割');return;}
+  const ratio=(t-cue.start)/(cue.end-cue.start);
+  const [first,second]=splitBilingualText(cue.text,ratio,selected.index===i?selected.pos:-1);
+  if(!first.trim()||!second.trim()){splitStatus('分割位置过于靠近句首或句尾，请调整光标');return;}
+  splitRemember();
+  const cut=Math.round(t*1000)/1000;
+  const previous=subs[i-1];
+  previous.end=Math.max(previous.end,cut);
+  previous.text=mergeBilingualLines(previous.text,first);
+  cue.start=cut;
+  cue.text=second;
+  current=i;
+  splitCaret={index:-1,pos:-1};
+  cancelSentencePlay();
+  renderAll();
+  splitStatus(`已暂存第 ${i+1} 句前半部分合并到上一句；后半部分仍是独立句。累计 ${splitUndoHistory.length} 步，可继续分割，最后点“完成”。`);
 };
 document.getElementById('splitCueBtn').onclick=()=>doSubtitleSplit(false);
 document.getElementById('splitMergeNextBtn').onclick=()=>doSubtitleSplit(true);
