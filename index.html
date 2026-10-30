@@ -213,6 +213,11 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
+  <div id="youtubeRecovery" class="controls" style="display:none">
+    <button id="retryYoutubeEmbed" class="secondary" type="button">尝试备用嵌入播放器</button>
+    <button id="openYoutubeOriginal" class="secondary" type="button">YouTube 原网页</button>
+  </div>
+  <div id="youtubeRecoveryNote" class="small" style="display:none;margin-top:7px">备用嵌入仍受 YouTube 限制；只有成功嵌入时才能同步本页字幕。原网页可播放，但不能同步本页字幕。</div>
 </div>
 
 <div class="card">
@@ -2131,7 +2136,28 @@ function loadNativeVideo(src,key,name,type){
   video.play().catch(()=>{$("#videoStatus").textContent=type==="audio"?"MP3 已加载，请点下方播放按钮":"视频已选择，请点下方播放按钮";});
 }
 
+let youtubeAlternateEmbed=false;
+function setYoutubeRecovery(visible){
+  const row=document.getElementById("youtubeRecovery"),note=document.getElementById("youtubeRecoveryNote");
+  if(row)row.style.display=visible?"flex":"none";
+  if(note)note.style.display=visible?"block":"none";
+}
+document.getElementById("retryYoutubeEmbed").addEventListener("click",()=>{
+  const id=extractId(document.getElementById("ytUrl").value)||currentSourceKey;
+  if(!id)return;
+  youtubeAlternateEmbed=!youtubeAlternateEmbed;
+  try{if(youtubePlayer&&typeof youtubePlayer.destroy==="function")youtubePlayer.destroy();}catch(e){}
+  youtubePlayer=null;player=null;playerReady=false;
+  document.getElementById("player").innerHTML="";
+  document.getElementById("videoStatus").textContent="正在尝试"+(youtubeAlternateEmbed?"备用":"标准")+"嵌入播放器…";
+  createOrLoadVideo(id);
+});
+document.getElementById("openYoutubeOriginal").addEventListener("click",()=>{
+  const id=extractId(document.getElementById("ytUrl").value)||currentSourceKey;
+  if(id)window.open("https://www.youtube.com/watch?v="+encodeURIComponent(id),"_blank","noopener,noreferrer");
+});
 function createOrLoadVideo(id){
+  setYoutubeRecovery(false);
   clearTimeout(subtitleSaveTimer);
   beginPositionMedia(id);
   playSentenceMode=false;
@@ -2152,6 +2178,7 @@ function createOrLoadVideo(id){
     return;
   }
   youtubePlayer = new YT.Player("player",{
+    ...(youtubeAlternateEmbed?{host:"https://www.youtube-nocookie.com"}:{}),
     videoId:id,
     playerVars:{
       start:savedPlaybackPosition(),
@@ -2159,8 +2186,7 @@ function createOrLoadVideo(id){
       controls:1,
       disablekb:1,
       rel:0,
-      modestbranding:1,
-      origin:location.origin
+      modestbranding:1
     },
     events:{
       onReady:function(){
@@ -2178,6 +2204,7 @@ function createOrLoadVideo(id){
         if(currentSourceType!=="youtube")return;
         player=youtubePlayer;
         if(e.data===YT.PlayerState.PLAYING||e.data===YT.PlayerState.PAUSED||e.data===YT.PlayerState.CUED){
+          setYoutubeRecovery(false);
           playerReady=true;
           setPlayerEnabled(true);
         }
@@ -2207,7 +2234,8 @@ function createOrLoadVideo(id){
         if(currentSourceType!=="youtube")return;
         playerReady=false;
         setPlayerEnabled(false);
-        $("#videoStatus").textContent="视频无法嵌入播放（错误 "+e.data+"）";
+        $("#videoStatus").textContent="YouTube 拒绝了嵌入播放（错误 "+e.data+"）。可以尝试备用播放器；若仍失败，需在原网页观看。";
+        setYoutubeRecovery(true);
       }
     }
   });
