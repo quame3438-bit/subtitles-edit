@@ -29,9 +29,6 @@ h1{font-size:24px;margin:8px 0 4px}
 .play-setting-item select,.play-count-value{width:100%;height:42px;margin:0;border:1px solid #d7d7dc;border-radius:10px;background:#fff;padding:8px 6px;font-size:15px;font-weight:400;text-align:center;text-align-last:center}
 .play-count-value{display:block;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
 .play-count-value::-webkit-inner-spin-button,.play-count-value::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-.sentence-play-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;margin-top:10px}
-.sentence-play-settings label{min-width:0;text-align:center;font-size:15px}
-.sentence-play-settings select{margin-top:4px;text-align:center;text-align-last:center}
 .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .controls button{flex:1;min-width:88px}
 button,.filebtn{border:0;border-radius:12px;padding:11px 13px;background:#111;color:#fff;font-size:15px;text-align:center}
@@ -39,6 +36,11 @@ button.secondary,.filebtn.secondary{background:#eee;color:#222}
 button:disabled{opacity:.45}
 input[type=file]{display:none}
 input[type=text],input[type=email],input[type=password],textarea,select{width:100%;border:1px solid #d7d7db;border-radius:10px;padding:10px;font-size:15px;background:#fff}
+.cloud-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.cloud-grid .wide{grid-column:1/-1}
+.cloud-status{padding:9px 11px;border-radius:10px;background:#f3f3f4;color:#555}
+.cloud-status.ok{background:#e8f7ed;color:#176b35}
+.cloud-status.warn{background:#fff4df;color:#8a5700}
 .urlrow{display:grid;grid-template-columns:1fr auto;gap:8px}
 .ytbox{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin-top:12px}
 #player,#nativePlayer{width:100%;height:100%}
@@ -46,9 +48,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .small{font-size:13px;color:#777}
 .subtitle{font-size:22px;font-weight:600;text-align:center;min-height:58px;padding:12px 8px;white-space:pre-wrap}
 .subtitle{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;touch-action:auto}
-.subtitle-wrap{position:relative;height:144px;min-height:144px;overflow:hidden}
-#currentSubtitle{height:100%;min-height:0;line-height:1.35;overflow:auto;overflow-wrap:anywhere;scrollbar-gutter:stable}
-#subtitleCopyStatus{min-height:18px}
+.subtitle-wrap{position:relative;min-height:58px}
 .subtitle-strip{
   display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;
   padding:10px 4px 14px;scroll-snap-type:x mandatory;
@@ -133,92 +133,152 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
  .grid textarea{grid-column:1/-1}
  .complete-backup-actions{grid-template-columns:1fr 1fr}
  .complete-backup-actions .import-all{grid-column:1/-1}
+ .cloud-grid{grid-template-columns:1fr}
+ .cloud-grid .wide{grid-column:auto}
 }
-
-/* 2026-10-01 页面布局调整：只加高“时间字幕播放”的6个按钮 */
-#timeSubtitlePlayCard > .collapsible-content > .controls button,
-#timeSubtitlePlayCard > .controls button{
-  min-height:88px !important;
-  padding-top:22px !important;
-  padding-bottom:22px !important;
-}
-
-/* 时间字幕播放：中央“继续本句”跨两行；AB三个按钮等宽等高 */
-.time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:88px 88px;gap:8px;margin-top:10px}
-.time-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3}
-#playCurrent{grid-column:2;grid-row:1 / span 2}
-#prev{grid-column:1;grid-row:1}#next{grid-column:3;grid-row:1}
-#cueRewind{grid-column:1;grid-row:2}#cueForward{grid-column:3;grid-row:2}
-.ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
-.ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <div class="wrap">
-<h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理</div>
+<h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-05 18:22</span></h1>
+<div class="version">云同步 V39 · 正在播放字幕居中修正</div>
 
 <div class="card">
-  <b>视频与字幕绑定</b>
-  <div style="margin-top:12px;padding:10px;background:#f3f3f5;border-radius:12px">
-    <div class="small" id="manualBindVideoInfo" style="margin:8px 0">请先加载视频</div>
-    <select id="manualSubtitleChoice" aria-label="选择要绑定的字幕"><option value="">选择已保存的字幕</option></select>
-    <div class="controls"><button id="manualBindSubtitle" type="button">绑定此视频和字幕</button></div>
-    <div class="controls"><button id="deleteSavedSubtitle" class="secondary" type="button">🗑️ 删除选中的已保存字幕</button></div>
-    <div class="small" style="margin-top:6px">删除选中记录及相关绑定，不删除其他字幕；删除前请先导出完整备份。</div>
-    <div id="manualBindStatus" class="status">不再自动弹出旧字幕确认窗口；仅手动绑定。</div>
+  <b>☁️ 云同步</b>
+  <div class="cloud-grid" id="cloudLoginPanel">
+    <input id="cloudEmail" type="email" inputmode="email" autocomplete="username" placeholder="邮箱">
+    <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="密码（至少 6 位）">
+    <button id="cloudLogin" type="button">登录并同步</button>
+    <button id="cloudSignup" class="secondary" type="button">第一次使用：注册</button>
   </div>
-
+  <div class="controls" id="cloudUserPanel" hidden>
+    <button id="cloudUploadNow" type="button">上传本机数据</button>
+    <button id="cloudDownloadNow" class="secondary" type="button">下载云端数据</button>
+    <button id="cloudLogout" class="secondary" type="button">退出云同步</button>
+  </div>
+  <div id="cloudStatus" class="status cloud-status warn">尚未登录；网页仍会正常保存在本机</div>
+  <div class="small" style="margin-top:7px">登录同一账号后，视频网址、文件夹、字幕、分段、生词文字和播放设置会在手机、iPad、电脑间同步。本地视频文件和生词图片不上传。</div>
 </div>
 
-
-
-
 <div class="card">
-  <b>加载视频</b>
-  <div class="urlrow" style="margin-top:10px">
-    <input id="ytUrl" type="text" placeholder="粘贴 YouTube 或 MP4 / MOV / WebM 直链">
-    <button id="loadBtn">加载视频</button>
+  <b>已保存的学习视频</b>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">视频文件夹
+      <select id="savedVideoFolderFilter"></select>
+    </label>
+    <button class="secondary" id="createVideoFolder">＋ 新建文件夹</button>
   </div>
   <div class="controls">
-    <label class="filebtn secondary" style="flex:1">选择本地视频／音频
-      <input id="localVideoFile" type="file" accept="video/*,audio/*,.mp4,.mov,.webm,.m4v,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aiff,.aif">
+    <button class="secondary" id="renameVideoFolder">重命名文件夹</button>
+    <button class="secondary" id="deleteVideoFolder">删除文件夹</button>
+  </div>
+  <div id="savedVideoList" class="saved-video-list"></div>
+  <div class="controls">
+    <button id="loadSavedVideo">打开选中</button>
+    <button class="secondary" id="renameSavedVideo">重命名</button>
+    <button class="secondary" id="deleteSavedVideo">删除选中</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">把选中视频移到
+      <select id="moveVideoFolderSelect"></select>
+    </label>
+    <button class="secondary" id="moveVideoToFolder">移动</button>
+  </div>
+  <div id="savedVideoStatus" class="status"></div>
+  <div id="videoVocabBindStatus" class="status" hidden></div>
+</div>
+
+<div class="card">
+  <b>🎧 AI 生成英语听力</b>
+  <div class="small" style="margin-top:7px">MP3 只保留在当前设备，不上传云端；英文文字、字幕、时间轴和学习条目信息会自动保存并同步云端。</div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">听力等级（发声方式）
+      <select id="ttsLevel">
+        <option value="1">Level 1 · 清楚分句</option>
+        <option value="2">Level 2 · 轻度自然连读</option>
+        <option value="3">Level 3 · 正常美语节奏</option>
+        <option value="4">Level 4 · 日常会话语流</option>
+        <option value="5">Level 5 · 母语弱读连读</option>
+        <option value="6">Level 6 · 真实访谈语流</option>
+      </select>
+    </label>
+    <label style="flex:1">生成语速（自己调）
+      <select id="ttsSpeed">
+        <option value="-1">慢一些 · -1</option>
+        <option value="-0.8">较慢 · -0.8</option>
+        <option value="-0.5" selected>稍慢 · -0.5</option>
+        <option value="0">正常 · 0</option>
+        <option value="0.3">稍快 · +0.3</option>
+        <option value="0.6">较快 · +0.6</option>
+        <option value="0.9">快 · +0.9</option>
+      </select>
     </label>
   </div>
-  <div class="controls">
-    <button class="secondary" id="bindVideoVocabBook">绑定单词本</button>
-  </div>
-</div>
-<div class="card" id="webBrowserCard">
-  <b>打开任意网页</b>
-  <div class="urlrow" style="margin-top:10px">
-    <input id="generalWebUrl" type="text" inputmode="url" placeholder="输入或粘贴网页地址，例如 youtube.com" autocomplete="url">
-    <button id="openGeneralWeb" type="button">打开网页</button>
-  </div>
-  <div class="small" style="margin-top:8px">优先在下方尝试显示网站；如网站禁止嵌入，请点击「Safari打开」使用网站自己的播放、进度条和快进快退。部分网站需登录或不提供快进功能。</div>
-  <div class="controls"><button id="openExternalWeb" class="secondary" type="button">Safari打开（兼容模式）</button><button id="webBack" class="secondary" type="button">返回</button><button id="webForward" class="secondary" type="button">前进</button><button id="webRefresh" class="secondary" type="button">刷新</button></div>
-  <div id="generalWebStatus" class="status" aria-live="polite"></div>
-  <div id="embeddedWebPanel" style="margin-top:10px;display:none"><iframe id="generalWebFrame" title="网页浏览" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:65vh;border:1px solid #ddd;border-radius:12px;background:white"></iframe></div>
-</div>
-<div class="card">
-  <b>3. 导入字幕</b>
+  <div class="small" id="ttsLevelHint" style="margin-top:7px">Level 1：发音边界清楚、停顿完整；等级只控制发声/断句风格，不再自动修改语速。</div>
+  <label style="display:block;margin-top:10px">学习材料名称
+    <input id="ttsTitle" type="text" placeholder="例如：Level 1 Morning Routine">
+  </label>
+  <label style="display:block;margin-top:10px">英文原文（每行一句）
+    <textarea id="ttsText" style="min-height:190px" placeholder="每行输入一句英文；也可以把 Level 2｜标题 放在第一行，网页会自动识别等级和名称"></textarea>
+  </label>
   <div class="row" style="margin-top:10px">
-    <label class="filebtn">＋ 导入 SRT / VTT<input id="srtFile" type="file" accept="*/*"></label>
-    <button class="secondary" id="exportSubtitleBelow">导出字幕</button>
-    <button class="secondary" id="addSub">＋ 添加一条</button>
+    <label style="flex:1">音色
+      <select id="ttsVoice">
+        <option value="502003">智小敏 · 超自然女声</option>
+        <option value="502001">智小柔 · 超自然女声</option>
+        <option value="602005">专业梓欣 · 超自然女声</option>
+      </select>
+    </label>
   </div>
-  <div id="subStatus" class="status">尚未导入字幕</div>
+  <label style="display:block;margin-top:10px">接口密码
+    <input id="ttsPassword" type="password" placeholder="原来的语音转文字接口密码" autocomplete="current-password">
+  </label>
+  <div class="controls">
+    <button id="ttsGenerate">生成 MP3 + 字幕</button>
+  </div>
+  <div class="controls">
+    <label class="filebtn secondary" style="flex:1">导入 MP3
+      <input id="ttsImportMp3" type="file" accept="audio/mpeg,.mp3">
+    </label>
+    <button class="secondary" id="ttsExportMp3" style="flex:1">导出 MP3</button>
+  </div>
+  <div class="controls">
+    <label class="filebtn secondary" style="flex:1">导入字幕
+      <input id="ttsImportSubtitle" type="file" accept=".srt,.vtt,text/plain">
+    </label>
+    <button class="secondary" id="ttsExportSubtitle" style="flex:1">导出字幕</button>
+  </div>
+  <div id="ttsStatus" class="status">尚未生成音频</div>
+
+  <div class="ai-library">
+    <b style="font-size:18px">📚 AI 英语听力文件列表</b>
+    <div class="row" style="margin-top:10px">
+      <label style="flex:1">AI 听力文件夹<select id="aiFolderFilter"></select></label>
+      <button class="secondary" id="aiCreateFolder">＋ 新建文件夹</button>
+    </div>
+    <div class="controls">
+      <button class="secondary" id="aiRenameFolder">重命名文件夹</button>
+      <button class="secondary" id="aiDeleteFolder">删除文件夹</button>
+    </div>
+    <div id="aiListeningList" class="ai-list"></div>
+    <div class="controls">
+      <button id="aiOpenItem">打开选中</button>
+      <button class="secondary" id="aiRenameItem">修改名称</button>
+      <button class="secondary" id="aiDeleteItem">删除选中</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="flex:1">把选中听力移到<select id="aiMoveFolder"></select></label>
+      <button class="secondary" id="aiMoveItem">移动</button>
+    </div>
+    <div id="aiListStatus" class="status">还没有 AI 英语听力。生成后会自动出现在这里；换设备登录后列表、文字和字幕会从云端恢复，MP3 需要本机重新导入。</div>
+  </div>
 </div>
+
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
-  <div class="controls" id="ytTroubleshoot" style="display:none">
-    <button type="button" id="ytRetryStandard" class="secondary">标准嵌入重试</button>
-    <button type="button" id="ytRetryPrivacy" class="secondary">隐私增强嵌入重试</button>
-    <button type="button" id="ytOpenOriginal" class="secondary">YouTube 原网页</button>
-  </div>
-  <div id="ytTroubleshootInfo" class="small" style="display:none;margin-top:8px">两种嵌入方式均使用 YouTube 官方播放器。若仍要求登录或提示 150，网页无法绕过 YouTube 的播放验证；可在原网页观看，或导入本地视频配合字幕。</div>
 </div>
 
 <div class="card">
@@ -227,32 +287,9 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <div id="currentSubtitle" class="subtitle">字幕会显示在这里</div>
   </div>
   <div id="currentMeta" class="small" style="text-align:center">0 / 0</div>
-  <div class="controls"></div>
 </div>
 
-<div class="card" id="timeSubtitlePlayCard">
-  <b>时间字幕播放</b>
-  <div class="time-play-grid">
-    <button class="secondary needsPlayer" id="prev">上一句</button>
-    <button class="needsPlayer" id="playCurrent">继续本句</button>
-    <button class="secondary needsPlayer" id="next">下一句</button>
-    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
-    <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
-  </div>
-</div>
-
-<div class="card" id="abLoopCard">
-  <b>AB 循环</b>
-  <div class="ab-play-grid">
-    <button type="button" class="secondary needsPlayer" id="abMarkA">A · 设置起点</button>
-    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
-    <button type="button" class="secondary needsPlayer" id="abMarkB">B · 设置终点</button>
-  </div>
-  <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
-</div>
-
- <div class="card">
-   <b>播放设置</b>
+<div class="card">
   <div class="play-settings-grid">
     <div class="play-setting-item">
       <span class="play-setting-title">快退</span>
@@ -272,50 +309,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     </div>
   </div>
 </div>
-
-<div class="card" id="sentencePlaySettingCard">
-  <b>播放模式设置</b>
-  <div class="sentence-play-settings">
-    <label>播放模式
-      <select id="sentenceAutoMode">
-        <option value="single">本句播放</option>
-        <option value="continuous">连续播放</option>
-      </select>
-    </label>
-    <label>播放间隔
-      <select id="sentenceAutoInterval"></select>
-    </label>
-    <label>播放次数
-      <select id="sentencePlayTimes"></select>
-    </label>
-  </div>
-  <div id="sentenceStatus" class="status">本句播放 · 1遍：播放1遍后停止</div>
-</div>
-
-<div class="card" id="startEndSettingCard">
-  <b>开始结束设定</b>
-  <div class="controls">
-    <button class="secondary needsPlayer" id="markCueStart">设为开始点</button>
-    <button class="secondary needsPlayer" id="markCueEnd">设为结束点</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1;min-width:0">开始时间<input id="newCueStart" type="text" placeholder="00:00:00.000"></label>
-    <label style="flex:1;min-width:0">结束时间<input id="newCueEnd" type="text" placeholder="00:00:00.000"></label>
-  </div>
-  <textarea id="newCueText" rows="3" placeholder="填写此句字幕" aria-label="此句字幕" style="width:100%;margin-top:10px"></textarea>
-  <div class="controls"><button id="insertNewCue">添加此句</button></div>
-  <div id="newCueStatus" class="status" role="status"></div>
-</div>
-
-
-
-
-
-
-
-
-
-
 
 <div class="card">
   <b>自定义视频分段</b>
@@ -416,34 +409,55 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 </div>
 
 <div class="card">
+  <div class="controls" style="margin-top:0">
+    <button class="secondary needsPlayer" id="prev">上一句</button>
+    <button class="needsPlayer" id="playCurrent">播放本句</button>
+    <button class="secondary needsPlayer" id="next">下一句</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">播放模式：
+      <select id="sentenceAutoMode">
+        <option value="single">本句播放</option>
+        <option value="continuous">连续播放</option>
+      </select>
+    </label>
+    <label style="flex:1">播放间隔：
+      <select id="sentenceAutoInterval"></select>
+    </label>
+  </div>
+  <div id="sentenceStatus" class="status">本句播放：播完停在当前句</div>
+</div>
+
+<div class="card">
   <div class="row">
     <b style="flex:1">4. 编辑字幕</b>
     <button id="exportBtn">导出 SRT</button>
   </div>
   <div class="row" style="margin-top:10px">
-    <label style="flex:1">每次调整（毫秒）<select id="msStep"></select></label>
+    <label>每次加减：
+      <select id="msStep"></select>
+      毫秒
+    </label>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">整体调整（毫秒）<select id="subtitleShiftMs"></select></label>
   </div>
   <div class="controls">
     <button class="secondary" id="shiftSubtitlesEarlier">整体时间向前</button>
     <button class="secondary" id="shiftSubtitlesLater">整体时间向后</button>
   </div>
-  <div class="controls">
-    <button class="secondary" id="shiftRemainingEarlier">从此句到末句时间向前</button>
-    <button class="secondary" id="shiftRemainingLater">从此句到末句时间向后</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1;min-width:0">从第几句<input id="subtitleRangeStart" type="number" min="1" step="1" inputmode="numeric" placeholder="起始句编号"></label>
-    <label style="flex:1;min-width:0">到第几句<input id="subtitleRangeEnd" type="number" min="1" step="1" inputmode="numeric" placeholder="结束句编号"></label>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="shiftRangeEarlier">指定范围时间向前</button>
-    <button class="secondary" id="shiftRangeLater">指定范围时间向后</button>
-  </div>
   <div id="subtitleShiftStatus" class="status" aria-live="polite"></div>
   <div id="list" class="subtitle-strip"></div>
 </div>
 
-
+<div class="card">
+  <b>3. 导入字幕</b>
+  <div class="row" style="margin-top:10px">
+    <label class="filebtn">＋ 导入 SRT / VTT<input id="srtFile" type="file" accept="*/*"></label>
+    <button class="secondary" id="addSub">＋ 添加一条</button>
+  </div>
+  <div id="subStatus" class="status">尚未导入字幕</div>
+</div>
 
 <div class="card">
   <b>全部数据导出与恢复</b>
@@ -457,140 +471,20 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="completeBackupStatus" class="status">包含视频网址、分段、段落字幕、时间轴字幕、生词本和全部图片</div>
 </div>
 
-
 <div class="card">
-  <b>精准定位</b>
-  <div style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:center">
-    <button class="secondary needsPlayer" id="preciseBack">退</button>
-    <input id="preciseTime" type="text" placeholder="时:分:秒，例如 01:02:30" aria-label="定位时间，时分秒" style="text-align:center;min-width:0">
-    <button class="secondary needsPlayer" id="preciseForward">进</button>
-  </div>
-  <label style="display:block;margin-top:10px">退进时间<select id="preciseStep"></select></label>
-  <div id="preciseStatus" class="status" role="status"></div>
-</div>
-<div class="card">
-  <b>已保存的学习视频</b>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">视频文件夹
-      <select id="savedVideoFolderFilter"></select>
-    </label>
-    <button class="secondary" id="createVideoFolder">＋ 新建文件夹</button>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="renameVideoFolder">重命名文件夹</button>
-    <button class="secondary" id="deleteVideoFolder">删除文件夹</button>
-  </div>
-  <div id="savedVideoList" class="saved-video-list"></div>
-  <div class="controls">
-    <button id="loadSavedVideo">打开选中</button>
-    <button class="secondary" id="renameSavedVideo">重命名</button>
-    <button class="secondary" id="deleteSavedVideo">删除选中</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">把选中视频移到
-      <select id="moveVideoFolderSelect"></select>
-    </label>
-    <button class="secondary" id="moveVideoToFolder">移动</button>
-  </div>
-  <div id="savedVideoStatus" class="status"></div>
-  <div id="videoVocabBindStatus" class="status" hidden></div>
-</div>
-<div class="card">
-  <b>🎧 AI 生成英语听力</b>
-  <div class="small" style="margin-top:7px">MP3、英文文字、字幕、时间轴和学习条目信息保存在当前设备。</div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">听力等级（发声方式）
-      <select id="ttsLevel">
-        <option value="1">Level 1 · 清楚分句</option>
-        <option value="2">Level 2 · 轻度自然连读</option>
-        <option value="3">Level 3 · 正常美语节奏</option>
-        <option value="4">Level 4 · 日常会话语流</option>
-        <option value="5">Level 5 · 母语弱读连读</option>
-        <option value="6">Level 6 · 真实访谈语流</option>
-      </select>
-    </label>
-    <label style="flex:1">生成语速（自己调）
-      <select id="ttsSpeed">
-        <option value="-1">慢一些 · -1</option>
-        <option value="-0.8">较慢 · -0.8</option>
-        <option value="-0.5" selected>稍慢 · -0.5</option>
-        <option value="0">正常 · 0</option>
-        <option value="0.3">稍快 · +0.3</option>
-        <option value="0.6">较快 · +0.6</option>
-        <option value="0.9">快 · +0.9</option>
-      </select>
-    </label>
-  </div>
-  <div class="small" id="ttsLevelHint" style="margin-top:7px">Level 1：发音边界清楚、停顿完整；等级只控制发声/断句风格，不再自动修改语速。</div>
-  <label style="display:block;margin-top:10px">学习材料名称
-    <input id="ttsTitle" type="text" placeholder="例如：Level 1 Morning Routine">
-  </label>
-  <label style="display:block;margin-top:10px">英文原文（每行一句）
-    <textarea id="ttsText" style="min-height:190px" placeholder="每行输入一句英文；也可以把 Level 2｜标题 放在第一行，网页会自动识别等级和名称"></textarea>
-  </label>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">音色
-      <select id="ttsVoice">
-        <option value="502003">智小敏 · 超自然女声</option>
-        <option value="502001">智小柔 · 超自然女声</option>
-        <option value="602005">专业梓欣 · 超自然女声</option>
-      </select>
-    </label>
-  </div>
-  <label style="display:block;margin-top:10px">接口密码
-    <input id="ttsPassword" type="password" placeholder="原来的语音转文字接口密码" autocomplete="current-password">
-  </label>
-  <div class="controls">
-    <button id="ttsGenerate">生成 MP3 + 字幕</button>
-  </div>
-  <div class="controls">
-    <label class="filebtn secondary" style="flex:1">导入 MP3
-      <input id="ttsImportMp3" type="file" accept="audio/mpeg,.mp3">
-    </label>
-    <button class="secondary" id="ttsExportMp3" style="flex:1">导出 MP3</button>
-  </div>
-  <div class="controls">
-    <label class="filebtn secondary" style="flex:1">导入字幕
-      <input id="ttsImportSubtitle" type="file" accept=".srt,.vtt,text/plain">
-    </label>
-    <button class="secondary" id="ttsExportSubtitle" style="flex:1">导出字幕</button>
-  </div>
-  <div id="ttsStatus" class="status">尚未生成音频</div>
-
-  <div class="ai-library">
-    <b style="font-size:18px">📚 AI 英语听力文件列表</b>
-    <div class="row" style="margin-top:10px">
-      <label style="flex:1">AI 听力文件夹<select id="aiFolderFilter"></select></label>
-      <button class="secondary" id="aiCreateFolder">＋ 新建文件夹</button>
-    </div>
-    <div class="controls">
-      <button class="secondary" id="aiRenameFolder">重命名文件夹</button>
-      <button class="secondary" id="aiDeleteFolder">删除文件夹</button>
-    </div>
-    <div id="aiListeningList" class="ai-list"></div>
-    <div class="controls">
-      <button id="aiOpenItem">打开选中</button>
-      <button class="secondary" id="aiRenameItem">修改名称</button>
-      <button class="secondary" id="aiDeleteItem">删除选中</button>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <label style="flex:1">把选中听力移到<select id="aiMoveFolder"></select></label>
-      <button class="secondary" id="aiMoveItem">移动</button>
-    </div>
-    <div id="aiListStatus" class="status">还没有 AI 英语听力。生成后会自动出现在这里；换设备可使用完整备份恢复数据。</div>
-  </div>
-</div>
-<div class="card" id="pageSearchCard">
-  <b>字幕搜索</b>
+  <b>加载视频</b>
   <div class="urlrow" style="margin-top:10px">
-    <input id="pageSearchInput" type="text" placeholder="输入单词、短语或字幕内容">
-    <button id="pageSearchBtn" type="button">搜索</button>
+    <input id="ytUrl" type="text" placeholder="粘贴 YouTube 或 MP4 / MOV / WebM 直链">
+    <button id="loadBtn">加载视频</button>
   </div>
   <div class="controls">
-    <button class="secondary" id="pageSearchClear" type="button">清除</button>
+    <label class="filebtn secondary" style="flex:1">选择本地视频
+      <input id="localVideoFile" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v">
+    </label>
   </div>
-  <div id="pageSearchStatus" class="status">搜索当前导入的全部字幕，结果会全部显示在下面</div>
-  <div id="subtitleSearchResults" style="display:grid;gap:8px;margin-top:10px"></div>
+  <div class="controls">
+    <button class="secondary" id="bindVideoVocabBook">绑定单词本</button>
+  </div>
 </div>
 </div>
 
@@ -680,28 +574,6 @@ function initCollapsibleCards(){
 }
 
 document.addEventListener("DOMContentLoaded",initCollapsibleCards);
-document.addEventListener("DOMContentLoaded",()=>{
-  const input=document.getElementById("generalWebUrl"), status=document.getElementById("generalWebStatus");
-  const frame=document.getElementById("generalWebFrame"), panel=document.getElementById("embeddedWebPanel");
-  let history=[],pos=-1;
-  function valid(){
-    let raw=input.value.trim();if(!raw){status.textContent="请先输入网址";return null;}
-    if(!/^https?:\/\//i.test(raw))raw="https://"+raw;
-    try{const u=new URL(raw);if(!["http:","https:"].includes(u.protocol))throw Error();return u.href;}
-    catch(e){status.textContent="网址格式不正确";return null;}
-  }
-  function show(url){input.value=url;panel.style.display="block";frame.src=url;
-    status.textContent="正在尝试内嵌打开。若显示空白、拒绝连接、无法登录或无法播放，请点「Safari打开（兼容模式）」。网页自身播放器可控制播放进度；本编辑器无法跨网站控制。";
-  }
-  function open(){const url=valid();if(!url)return;history=history.slice(0,pos+1);history.push(url);pos=history.length-1;show(url);}
-  document.getElementById("openGeneralWeb").onclick=open;
-  document.getElementById("openExternalWeb").onclick=()=>{const url=valid();if(url){const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";document.body.appendChild(a);a.click();a.remove();status.textContent="已尝试在浏览器打开；若被阻止，请在 Safari 中直接粘贴网址。";}};
-  document.getElementById("webBack").onclick=()=>{if(pos>0)show(history[--pos]);};
-  document.getElementById("webForward").onclick=()=>{if(pos<history.length-1)show(history[++pos]);};
-  document.getElementById("webRefresh").onclick=()=>{if(pos>=0)show(history[pos]);};
-  input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();open();}});
-});
-
 
 let player = null;
 let youtubePlayer = null;
@@ -716,31 +588,7 @@ let sentenceCaptionLocked = false;
 let lockedSentenceIndex = -1;
 let sentenceAutoTimer = null;
 let sentenceStartTimer = null;
-let sentenceRunPlayCount = 0;
 let monitorTimer = null;
-let abStart=null,abEnd=null,abLoopActive=false;
-function refreshAbLoop(){
-  const a=document.getElementById("abMarkA"),b=document.getElementById("abMarkB"),status=document.getElementById("abLoopStatus");
-  if(!a||!b)return;
-  a.textContent=abStart===null?"A · 设置起点":"A · "+fmtSegmentTime(abStart)+" ✓";
-  b.textContent=abEnd===null?"B · 设置终点":"B · "+fmtSegmentTime(abEnd)+" ✓";
-  a.classList.toggle("secondary",abStart===null);
-  b.classList.toggle("secondary",abEnd===null);
-  status.textContent=abLoopActive?"AB 循环中：到 B 自动返回 A；点击 A 或 B 可取消对应标记。":(abStart===null?"点击 A 设置起点，再点击 B 设置终点并开始循环。":abEnd===null?"已设置 A，请播放到终点后点击 B。":"AB 循环未启动");
-}
-document.getElementById("abMarkA").addEventListener("click",()=>{
-  if(abStart!==null){abStart=null;abEnd=null;abLoopActive=false;}
-  else{abStart=now();abEnd=null;abLoopActive=false;cancelSentencePlay();cancelSegmentPlay();}
-  refreshAbLoop();
-});
-document.getElementById("abMarkB").addEventListener("click",()=>{
-  if(abEnd!==null){abEnd=null;abLoopActive=false;}
-  else if(abStart===null){document.getElementById("abLoopStatus").textContent="请先点击 A 设置起点";return;}
-  else if(now()<=abStart+0.05){document.getElementById("abLoopStatus").textContent="B 必须晚于 A，请播放到后面再设置";return;}
-  else{abEnd=now();abLoopActive=true;cancelSentencePlay();cancelSegmentPlay();seek(abStart);play();}
-  refreshAbLoop();
-});
-
 let suppressAutoUntil = 0;
 let lastMonitoredTime = null;
 let lastMonitorWallTime = 0;
@@ -765,17 +613,25 @@ const SAVED_VIDEO_FOLDER_KEY="ytSavedVideoFolders:v1";
 const SAVED_VIDEO_FOLDER_FILTER_KEY="ytSavedVideoFolderFilter:v1";
 const LAST_VIDEO_URL_KEY="ytLastVideoUrl:v1";
 const SUBTITLE_STORE_KEY="ytAutoSavedSubtitles:v1";
-const SUBTITLE_BIND_MAP_KEY="ytSubtitleBindings:v1";
 const VIDEO_VOCAB_MAP_KEY="ytVideoVocabMap:v1";
 const SEGMENT_CAPTION_FONT_KEY="ytSegmentCaptionFontSize:v1";
 const SEGMENT_AUTO_MODE_KEY="ytSegmentAutoMode:v1";
 const SEGMENT_AUTO_INTERVAL_KEY="ytSegmentAutoInterval:v1";
 const SENTENCE_AUTO_MODE_KEY="ytSentenceAutoMode:v1";
 const SENTENCE_AUTO_INTERVAL_KEY="ytSentenceAutoInterval:v1";
-const SENTENCE_PLAY_TIMES_KEY="ytSentencePlayTimes:v1";
 const AI_LIST_KEY="ytAiListeningItems:v1";
 const AI_FOLDER_KEY="ytAiListeningFolders:v1";
 const AI_FOLDER_FILTER_KEY="ytAiListeningFolderFilter:v1";
+const CLOUD_UI_SETTINGS_KEY="ytCloudUiSettings:v1";
+const CLOUD_LOCAL_CHANGED_KEY="ytCloudLocalChangedAt:v1";
+const CLOUD_PROJECT_URL="https://braarnzywbodyfdclodc.supabase.co";
+const CLOUD_PUBLISHABLE_KEY="sb_publishable_JecnrG-198PERwUD5lFhaQ_wc0vV4Lj";
+const CLOUD_TABLE="subtitle_editor_cloud";
+const CLOUD_FIXED_KEYS=new Set([
+  SAVED_VIDEO_KEY,SAVED_VIDEO_FOLDER_KEY,SAVED_VIDEO_FOLDER_FILTER_KEY,LAST_VIDEO_URL_KEY,
+  SUBTITLE_STORE_KEY,VIDEO_VOCAB_MAP_KEY,SEGMENT_CAPTION_FONT_KEY,SEGMENT_AUTO_MODE_KEY,
+  SEGMENT_AUTO_INTERVAL_KEY,SENTENCE_AUTO_MODE_KEY,SENTENCE_AUTO_INTERVAL_KEY,"ytVocabBooks:v1",AI_LIST_KEY,AI_FOLDER_KEY,AI_FOLDER_FILTER_KEY,CLOUD_UI_SETTINGS_KEY
+]);
 let segmentCaptionFontSize=Math.max(12,Math.min(36,Number(localStorage.getItem(SEGMENT_CAPTION_FONT_KEY))||16));
 let savedVideos=[];
 let videoFolders=[];
@@ -793,6 +649,28 @@ let vocabRenderToken=0;
 let heldVocabImage=null;
 let vocabImagePressTimer=null;
 let vocabImageLongPressed=false;
+let cloudClient=null;
+let cloudSession=null;
+let cloudReady=false;
+let cloudApplying=false;
+let cloudTracking=false;
+let cloudSaveTimer=null;
+let cloudSaving=false;
+let cloudSaveAgain=false;
+const nativeLocalStorageSet=Storage.prototype.setItem;
+
+function isCloudDataKey(key){
+  return CLOUD_FIXED_KEYS.has(String(key)) || String(key).startsWith("ytSegments:");
+}
+
+Storage.prototype.setItem=function(key,value){
+  nativeLocalStorageSet.call(this,key,value);
+  if(this===localStorage && cloudTracking && !cloudApplying && isCloudDataKey(key)){
+    nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(Date.now()));
+    scheduleCloudSave();
+  }
+};
+
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const pad = (n,l=2)=>String(n).padStart(l,"0");
@@ -847,55 +725,31 @@ $("#segmentAutoInterval").onchange=function(){
   cancelSegmentPlay();
 };
 
-for(const [value,label] of [[0,"0 秒"],[1,"1 秒"],[2,"2 秒"],[3,"3 秒"],[4,"4 秒"],[5,"5 秒"],[6,"6 秒"],[7,"7 秒"],[8,"8 秒"],[9,"9 秒"],[10,"10 秒"],[30,"30 秒"],[60,"1 分钟"]]){
+for(const [value,label] of [[-1,"无限"],[0,"0 秒"],[1,"1 秒"],[2,"2 秒"],[3,"3 秒"],[4,"4 秒"],[5,"5 秒"],[6,"6 秒"],[7,"7 秒"],[8,"8 秒"],[9,"9 秒"],[10,"10 秒"],[30,"30 秒"],[60,"1 分钟"]]){
   const o=document.createElement("option");
   o.value=value;o.textContent=label;
   $("#sentenceAutoInterval").appendChild(o);
 }
-for(const value of ["infinite",...Array.from({length:10},(_,i)=>String(i+1)),...Array.from({length:9},(_,i)=>String((i+2)*10))]){
-  const o=document.createElement("option");
-  o.value=value;
-  o.textContent=value==="infinite"?"无限":value;
-  $("#sentencePlayTimes").appendChild(o);
-}
 const savedSentenceAutoMode=localStorage.getItem(SENTENCE_AUTO_MODE_KEY);
 $("#sentenceAutoMode").value=savedSentenceAutoMode==="continuous"?"continuous":"single";
 const savedSentenceAutoInterval=localStorage.getItem(SENTENCE_AUTO_INTERVAL_KEY);
-$("#sentenceAutoInterval").value=["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(savedSentenceAutoInterval)
+$("#sentenceAutoInterval").value=["-1","0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(savedSentenceAutoInterval)
   ? savedSentenceAutoInterval
-  : "0";
-const savedSentencePlayTimes=localStorage.getItem(SENTENCE_PLAY_TIMES_KEY);
-$("#sentencePlayTimes").value=["infinite","1","2","3","4","5","6","7","8","9","10","20","30","40","50","60","70","80","90","100"].includes(savedSentencePlayTimes)
-  ? savedSentencePlayTimes
-  : "1";
-function sentencePlaySettingSummary(){
-  const mode=$("#sentenceAutoMode").value;
-  const times=$("#sentencePlayTimes").value;
-  if(times==="infinite")return `${mode==="continuous"?"连续播放":"本句播放"} · 无限：当前句无限重复`;
-  return mode==="continuous"
-    ? `连续播放 · ${times}遍：每句播放${times}遍后进入下一句`
-    : `本句播放 · ${times}遍：播放${times}遍后停止`;
-}
-$("#sentenceStatus").textContent=sentencePlaySettingSummary();
+  : "-1";
 $("#sentenceAutoMode").onchange=function(){
   localStorage.setItem(SENTENCE_AUTO_MODE_KEY,this.value);
   pause();
   cancelSentencePlay();
-  $("#sentenceStatus").textContent=sentencePlaySettingSummary();
+  $("#sentenceStatus").textContent=this.value==="continuous"
+    ? "已开启连续播放：按所选间隔进入下一句"
+    : "已开启本句播放：按所选间隔重复当前句";
 };
 $("#sentenceAutoInterval").onchange=function(){
   localStorage.setItem(SENTENCE_AUTO_INTERVAL_KEY,this.value);
   pause();
   cancelSentencePlay();
-  $("#sentenceStatus").textContent=sentencePlaySettingSummary();
 };
-$("#sentencePlayTimes").onchange=function(){
-  localStorage.setItem(SENTENCE_PLAY_TIMES_KEY,this.value);
-  pause();
-  cancelSentencePlay();
-  $("#sentenceStatus").textContent=sentencePlaySettingSummary();
-};
-for(const i of [...Array.from({length:100},(_,i)=>i+1),200,300,400,500,1000,2000]){
+for(let i=1;i<=100;i++){
   const o=document.createElement("option");
   o.value=i; o.textContent=i;
   if(i===10)o.selected=true;
@@ -910,28 +764,6 @@ for(let ms=100;ms<=1000;ms+=100){
 
 function setPlayerEnabled(on){
   $$(".needsPlayer").forEach(b=>b.disabled=!on);
-}
-function recoverPlayerControls(){
-  let usable=false;
-  try{
-    if(currentSourceType==="youtube"){
-      usable=!!(youtubePlayer &&
-        typeof youtubePlayer.getCurrentTime==="function" &&
-        typeof youtubePlayer.getPlayerState==="function" &&
-        youtubePlayer.getPlayerState()!==-1);
-    }else if(currentSourceType==="direct"||currentSourceType==="local"||currentSourceType==="audio"){
-      const v=$("#nativePlayer");
-      usable=!!(v && Number.isFinite(v.duration) && v.duration>0);
-    }
-  }catch(e){}
-  if(usable){
-    player=currentSourceType==="youtube"?youtubePlayer:ensureNativePlayer();
-    playerReady=true;
-    setPlayerEnabled(true);
-    updatePlayCurrentButtonState();
-    installRemoteSegmentControls();
-  }
-  return usable;
 }
 setPlayerEnabled(false);
 
@@ -989,74 +821,19 @@ function readSubtitleStore(){
   }catch(e){return {};}
 }
 
-function readSubtitleBindings(){
-  try{const m=JSON.parse(localStorage.getItem(SUBTITLE_BIND_MAP_KEY)||"{}");return m&&typeof m==="object"&&!Array.isArray(m)?m:{};}catch(e){return {};}
-}
-function resolvedSubtitleEntry(key){
-  const store=readSubtitleStore();
-  const bindings=readSubtitleBindings();
-  const linked=bindings[key];
-  if(linked && store[linked] && Array.isArray(store[linked].subs))return store[linked];
-  return store[key];
-}
-// Large subtitle records are kept in IndexedDB rather than rewriting a single localStorage blob.
-const SUB_DB_NAME="ytSubtitleRecordsDB",SUB_DB_TABLE="records";
-let subDbPromise=null,subWriteSerial=Promise.resolve(),subRestoreToken=0;
-function openSubDb(){
-  if(!subDbPromise)subDbPromise=new Promise((resolve,reject)=>{
-    const req=indexedDB.open(SUB_DB_NAME,1);
-    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(SUB_DB_TABLE))req.result.createObjectStore(SUB_DB_TABLE);};
-    req.onsuccess=()=>resolve(req.result);
-    req.onerror=()=>reject(req.error||new Error("IndexedDB 无法打开"));
-  }).catch(e=>{subDbPromise=null;throw e;});
-  return subDbPromise;
-}
-async function subDbPut(key,entry){
-  const db=await openSubDb();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(SUB_DB_TABLE,"readwrite");
-    tx.objectStore(SUB_DB_TABLE).put(entry,key);
-    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
-  });
-}
-async function subDbDelete(key){
-  const db=await openSubDb();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(SUB_DB_TABLE,"readwrite");
-    tx.objectStore(SUB_DB_TABLE).delete(key);
-    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
-  });
-}
-async function subDbGet(key){
-  const db=await openSubDb();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(SUB_DB_TABLE,"readonly"),req=tx.objectStore(SUB_DB_TABLE).get(key);
-    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
-  });
-}
-async function subDbEntries(){
-  const db=await openSubDb();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(SUB_DB_TABLE,"readonly"),store=tx.objectStore(SUB_DB_TABLE),req=store.openCursor(),out=[];
-    req.onsuccess=()=>{const c=req.result;if(c){out.push([String(c.key),c.value]);c.continue();}else resolve(out);};
-    req.onerror=()=>reject(req.error);
-  });
-}
-function subtitleSnapshot(){return {name:currentSubtitleName||"自动保存的字幕",savedAt:new Date().toISOString(),subs:subs.map(s=>({start:Number(s.start)||0,end:Number(s.end)||0,text:String(s.text||""),playCount:Math.max(0,Math.floor(Number(s.playCount)||0))}))};}
 function saveSubtitlesNow(){
-  if(!subs.length)return;
-  const key=subtitleStorageKey(),entry=subtitleSnapshot();
-  subWriteSerial=subWriteSerial.catch(()=>{}).then(()=>subDbPut(key,entry)).then(()=>{
-    if(key===subtitleStorageKey())$("#subStatus").textContent=`已保存 ${entry.subs.length} 条字幕（大容量存储）`;
-  }).catch(e=>{$("#subStatus").textContent="字幕保存失败："+(e?.message||e)+"。请先导出字幕备份。";});
-}
-async function restoreDbSubtitles(key,token){
+  const store=readSubtitleStore();
+  store[subtitleStorageKey()]={
+    name:currentSubtitleName||"自动保存的字幕",
+    savedAt:new Date().toISOString(),
+    subs:subs.map(s=>({start:Number(s.start)||0,end:Number(s.end)||0,text:String(s.text||"")}))
+  };
   try{
-    const bindings=readSubtitleBindings(),linked=bindings[key];
-    const entry=(linked&&await subDbGet(linked))||await subDbGet(key);
-    if(token!==subRestoreToken||key!==subtitleStorageKey())return;
-    if(entry&&Array.isArray(entry.subs)){
-      subs=entry.subs.filter(Boolean).map(s=>({start:Math.max(0,Number(s.start)||0),end:Math.max(0,Number(s.end)||0),text:String(s.text||""),playCount:Math.max(0,Math.floor(Number(s.playCount)||0))}));
-      currentSubtitleName=String(entry.name||"自动保存的字幕");current=0;
-      $("#subStatus").textContent=`已恢复 ${subs.length} 条：${currentSubtitleName}`;renderAll();
-    }
-  }catch(e){console.warn("读取大容量字幕失败",e);}
+    localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(store));
+    if(subs.length)$("#subStatus").textContent=`已自动保存 ${subs.length} 条：${currentSubtitleName||"字幕"}`;
+  }catch(e){
+    $("#subStatus").textContent="字幕自动保存失败：本机存储空间不足";
+  }
 }
 
 function scheduleSubtitleSave(){
@@ -1065,13 +842,12 @@ function scheduleSubtitleSave(){
 }
 
 function restoreSavedSubtitles(key=subtitleStorageKey(),clearWhenMissing=false){
-  const saved=resolvedSubtitleEntry(key);
+  const saved=readSubtitleStore()[key];
   if(saved&&Array.isArray(saved.subs)){
-    ++subRestoreToken;
     subs=saved.subs.filter(Boolean).map(s=>({
       start:Math.max(0,Number(s.start)||0),
       end:Math.max(0,Number(s.end)||0),
-      text:String(s.text||""),playCount:Math.max(0,Math.floor(Number(s.playCount)||0))
+      text:String(s.text||"")
     }));
     currentSubtitleName=String(saved.name||"自动保存的字幕");
     current=0;
@@ -1079,9 +855,6 @@ function restoreSavedSubtitles(key=subtitleStorageKey(),clearWhenMissing=false){
     renderAll();
     return true;
   }
-  const restoreToken=++subRestoreToken;
-  // Legacy storage is read first; IndexedDB records are restored asynchronously.
-  restoreDbSubtitles(key,restoreToken);
   if(clearWhenMissing){
     subs=[];current=0;currentSubtitleName="";
     $("#subStatus").textContent="这个视频还没有保存的字幕";
@@ -1874,7 +1647,6 @@ async function collectCompleteBackup(){
     segmentAutoInterval:$("#segmentAutoInterval").value,
     sentenceAutoMode:$("#sentenceAutoMode").value,
     sentenceAutoInterval:$("#sentenceAutoInterval").value,
-    sentencePlayTimes:$("#sentencePlayTimes").value,
     segmentStores:collectSegmentStores(),
     subtitleStore:readSubtitleStore(),
     activeVocabBookId,
@@ -1920,8 +1692,7 @@ function backupReportHtml(data){
   </style></head><body><button class="no-print" onclick="window.print()" style="position:sticky;top:8px;padding:10px 18px;background:#111;color:#fff;border:0;border-radius:9px">保存为 PDF / 打印</button>
   <h1>英语学习完整资料</h1><p>导出时间：${escapeHtml(new Date(data.exportedAt).toLocaleString("zh-CN"))}</p><p>当前网址：${escapeHtml(data.currentUrl||data.lastVideoUrl||"无")}</p>
   <h2>已保存的学习视频网址</h2><ol>${videos}</ol><h2>自定义视频分段</h2>${segmentGroups}<h2>字幕</h2>${subtitleGroups}<h2>生词本</h2>${books}
-  <script>window.onload=()=>setTimeout(()=>window.print(),500)<\/script>
-</body></html>`;
+  <script>window.onload=()=>setTimeout(()=>window.print(),500)<\/script></body></html>`;
 }
 
 $("#exportCompletePdf").onclick=async function(){
@@ -1987,13 +1758,9 @@ $("#importCompleteJson").onchange=async function(){
       $("#sentenceAutoMode").value=data.sentenceAutoMode;
       localStorage.setItem(SENTENCE_AUTO_MODE_KEY,data.sentenceAutoMode);
     }
-    if(["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.sentenceAutoInterval))){
+    if(["-1","0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.sentenceAutoInterval))){
       $("#sentenceAutoInterval").value=String(data.sentenceAutoInterval);
       localStorage.setItem(SENTENCE_AUTO_INTERVAL_KEY,String(data.sentenceAutoInterval));
-    }
-    if(["infinite","1","2","3","4","5","6","7","8","9","10","20","30","40","50","60","70","80","90","100"].includes(String(data.sentencePlayTimes))){
-      $("#sentencePlayTimes").value=String(data.sentencePlayTimes);
-      localStorage.setItem(SENTENCE_PLAY_TIMES_KEY,String(data.sentencePlayTimes));
     }
     const restoredUrl=String(data.currentUrl||data.lastVideoUrl||"");
     localStorage.setItem(LAST_VIDEO_URL_KEY,restoredUrl);
@@ -2005,8 +1772,7 @@ $("#importCompleteJson").onchange=async function(){
     readVideoFolders();readSavedVideos();renderVideoFolderControls();renderSavedVideos();
     await renderVocabBooks();
     switchVocabBookForVideo(restoredUrl,false);
-    currentSourceKey="";subs=[];current=0;currentSubtitleName="";
-    $("#subStatus").textContent="备份已恢复，请打开对应视频后查看字幕";
+    restoreSavedSubtitles(subtitleStorageKey(),true);
     loadSegmentsFromLocal();renderAll();
     $("#completeBackupStatus").textContent="完整备份已导入并自动保存";
     alert("导入成功：网址、分段、段落字幕、时间轴字幕、生词本和图片已恢复");
@@ -2016,7 +1782,6 @@ $("#importCompleteJson").onchange=async function(){
 };
 
 window.onYouTubeIframeAPIReady = function(){
-  if(ytPendingId){const id=ytPendingId;ytPendingId="";createOrLoadVideo(id);return;}
   if(currentSourceType==="youtube"&&!playerReady)$("#videoStatus").textContent = "YouTube 播放器已准备，可粘贴链接";
 };
 
@@ -2097,15 +1862,10 @@ function ensureNativePlayer(){
   video.addEventListener("play",()=>{
     installRemoteSegmentControls();
     $("#togglePlay").textContent="⏸ 暂停";
-    updatePlayCurrentButtonState();
     startMonitor();
     if(!segmentPlayMode&&!segmentCaptionLocked)syncSegmentCaptionToVideoTime(Number(video.currentTime)||0,false);
   });
-  video.addEventListener("pause",()=>{
-    savePlaybackPosition(true);
-    $("#togglePlay").textContent="▶️ 播放";
-    updatePlayCurrentButtonState();
-  });
+  video.addEventListener("pause",()=>{savePlaybackPosition(true);$("#togglePlay").textContent="▶️ 播放";});
   video.addEventListener("seeked",()=>{
     if(currentSourceType!=="direct"&&currentSourceType!=="local"&&currentSourceType!=="audio")return;
     const t=Number(video.currentTime)||0;
@@ -2121,7 +1881,6 @@ function ensureNativePlayer(){
 }
 
 function loadNativeVideo(src,key,name,type){
-  clearTimeout(subtitleSaveTimer);
   beginPositionMedia(key);
   cancelSegmentPlay();playSentenceMode=false;
   lastMonitoredTime=null;lastMonitorWallTime=0;
@@ -2138,30 +1897,7 @@ function loadNativeVideo(src,key,name,type){
   video.play().catch(()=>{$("#videoStatus").textContent=type==="audio"?"MP3 已加载，请点下方播放按钮":"视频已选择，请点下方播放按钮";});
 }
 
-let ytEmbedHost="https://www.youtube.com";
-let ytPendingId="";
-function showYtTroubleshoot(){
-  $("#ytTroubleshoot").style.display="flex";
-  $("#ytTroubleshootInfo").style.display="block";
-}
-function rebuildYouTube(host){
-  const id=extractId($("#ytUrl").value)||currentSourceKey;
-  if(!id){$("#videoStatus").textContent="请先加载 YouTube 视频";return;}
-  ytEmbedHost=host;
-  try{if(youtubePlayer&&typeof youtubePlayer.destroy==="function")youtubePlayer.destroy();}catch(e){}
-  youtubePlayer=null;player=null;playerReady=false;setPlayerEnabled(false);
-  const box=$("#player");box.innerHTML="";
-  createOrLoadVideo(id);
-}
-$("#ytRetryStandard").addEventListener("click",()=>rebuildYouTube("https://www.youtube.com"));
-$("#ytRetryPrivacy").addEventListener("click",()=>rebuildYouTube("https://www.youtube-nocookie.com"));
-$("#ytOpenOriginal").addEventListener("click",()=>{
-  const id=extractId($("#ytUrl").value)||currentSourceKey;
-  if(id)window.open("https://www.youtube.com/watch?v="+encodeURIComponent(id),"_blank","noopener,noreferrer");
-});
 function createOrLoadVideo(id){
-  showYtTroubleshoot();
-  clearTimeout(subtitleSaveTimer);
   beginPositionMedia(id);
   playSentenceMode=false;
   lastMonitoredTime=null;lastMonitorWallTime=0;
@@ -2174,14 +1910,12 @@ function createOrLoadVideo(id){
     selectedSegmentIndex=-1;
     renderSegments();
     player=youtubePlayer;playerReady=true;
-    youtubePlayer.cueVideoById({videoId:id,startSeconds:savedPlaybackPosition()});
+    youtubePlayer.loadVideoById({videoId:id,startSeconds:savedPlaybackPosition()});
     $("#videoStatus").textContent="正在加载视频…";
-    recoverPlayerControls();
-    setTimeout(()=>{recoverPlayerControls();loadSegmentsFromLocal();},700);
+    setTimeout(loadSegmentsFromLocal,700);
     return;
   }
   youtubePlayer = new YT.Player("player",{
-    host:ytEmbedHost,
     videoId:id,
     playerVars:{
       start:savedPlaybackPosition(),
@@ -2190,7 +1924,7 @@ function createOrLoadVideo(id){
       disablekb:1,
       rel:0,
       modestbranding:1,
-      ...(location.protocol==="https:"?{origin:location.origin}:{})
+      origin:location.origin
     },
     events:{
       onReady:function(){
@@ -2207,15 +1941,10 @@ function createOrLoadVideo(id){
       onStateChange:function(e){
         if(currentSourceType!=="youtube")return;
         player=youtubePlayer;
-        if(e.data===YT.PlayerState.PLAYING||e.data===YT.PlayerState.PAUSED||e.data===YT.PlayerState.CUED){
-          playerReady=true;
-          setPlayerEnabled(true);
-        }
         if(e.data===YT.PlayerState.PLAYING||e.data===YT.PlayerState.CUED)restorePlaybackPosition();
         if(e.data===YT.PlayerState.PAUSED||e.data===YT.PlayerState.ENDED)savePlaybackPosition(true);
         $("#togglePlay").textContent =
           e.data===YT.PlayerState.PLAYING ? "⏸ 暂停" : "▶️ 播放";
-        updatePlayCurrentButtonState();
         if(e.data===YT.PlayerState.PLAYING){
           installRemoteSegmentControls();
           startMonitor();
@@ -2237,7 +1966,7 @@ function createOrLoadVideo(id){
         if(currentSourceType!=="youtube")return;
         playerReady=false;
         setPlayerEnabled(false);
-        $("#videoStatus").textContent="YouTube 嵌入播放错误 "+e.data+"。可尝试下方另一种官方嵌入方式；若仍失败，请用原网页或本地视频。";
+        $("#videoStatus").textContent="视频无法嵌入播放（错误 "+e.data+"）";
       }
     }
   });
@@ -2267,13 +1996,11 @@ $("#loadBtn").onclick = function(){
     return;
   }
   if(!(window.YT && YT.Player)){
-    ytPendingId=id;
-    $("#videoStatus").textContent="正在等待 YouTube 官方接口加载，加载完成后会自动打开…";
+    $("#videoStatus").textContent="YouTube 播放器还在加载，请过1秒再点一次";
     return;
   }
   try{localStorage.setItem(LAST_VIDEO_URL_KEY,currentUrl);}catch(e){}
   savePlaybackPosition(true);
-  clearTimeout(subtitleSaveTimer);
   currentSourceKey=id;currentSourceType="youtube";
   autoSaveCurrentVideo(false);
   restoreSavedSubtitles(id,true);
@@ -2281,119 +2008,15 @@ $("#loadBtn").onclick = function(){
   createOrLoadVideo(id);
 };
 
-// 用文件内容指纹区分本地媒体，避免不同视频错误复用其他视频的字幕。
-async function localMediaFingerprint(file){
-  const size=file.size;
-  const chunk=1024*1024;
-  const parts=[new TextEncoder().encode(`media-v2:${size}:`)];
-  for(const offset of [...new Set([0,Math.max(0,Math.floor(size/2)-chunk/2),Math.max(0,size-chunk)])]){
-    parts.push(new Uint8Array(await file.slice(offset,Math.min(size,offset+chunk)).arrayBuffer()));
-  }
-  const total=parts.reduce((n,a)=>n+a.byteLength,0);
-  const bytes=new Uint8Array(total);let pos=0;
-  for(const part of parts){bytes.set(part,pos);pos+=part.byteLength;}
-  const digest=await crypto.subtle.digest("SHA-256",bytes);
-  return "local:v2:"+Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-$("#localVideoFile").onchange=async function(){
+$("#localVideoFile").onchange=function(){
   const file=this.files&&this.files[0];
   if(!file)return;
+  const key=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
+  $("#ytUrl").value=`本地视频：${file.name}`;
+  loadNativeVideo(URL.createObjectURL(file),key,file.name,"local");
   this.value="";
-  const src=URL.createObjectURL(file);
-  const legacyKey=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
-  let key=legacyKey;
-  try{
-    $("#videoStatus").textContent="正在识别视频…";
-    key=await localMediaFingerprint(file);
-  }catch(e){
-    // Fingerprinting is optional: never block video loading on crypto/browser errors.
-    console.warn("视频指纹计算失败，使用旧版标识",e);
-  }
-  // Only load subtitles already saved against this exact fingerprint.
-  // Old keys are retained untouched; manual binding is available above.
-  let selectedKey=key;
-  // Never make media playback depend on subtitle migration succeeding.
-  try{
-    $("#ytUrl").value=`本地媒体：${file.name}`;
-    loadNativeVideo(src,selectedKey,file.name,"local");
-  }catch(e){
-    console.error("视频初始化失败",e);
-    const video=$("#nativePlayer");
-    currentSourceType="local";currentSourceKey=selectedKey;
-    $("#player").style.display="none";
-    video.style.display="block";
-    video.src=src;video.load();
-    $("#videoStatus").textContent="视频已选择；如未自动播放，请点击视频上的播放键。字幕初始化异常："+(e?.message||e);
-  }
 };
 
-async function refreshManualSubtitleChoices(){
-  const sel=$("#manualSubtitleChoice");if(!sel)return;
-  const prev=sel.value,store=readSubtitleStore();
-  try{for(const [key,entry] of await subDbEntries())if(entry&&Array.isArray(entry.subs))store[key]=entry;}catch(e){}
-  sel.replaceChildren(new Option("选择已保存的字幕",""));
-  Object.entries(store).filter(([k,v])=>v&&Array.isArray(v.subs)&&v.subs.length).sort((a,b)=>String(b[1].savedAt||"").localeCompare(String(a[1].savedAt||""))).forEach(([key,v])=>{
-    const label=`${v.name||"未命名"}（${v.subs.length}条） · ${key.slice(0,22)}`;
-    sel.add(new Option(label,key));
-  });
-  if([...sel.options].some(o=>o.value===prev))sel.value=prev;
-  const info=$("#manualBindVideoInfo");
-  if(info)info.textContent=currentSourceKey?`当前视频：${nativeSourceName||$("#ytUrl").value||currentSourceKey}（已识别）`:'请先加载视频';
-}
-$("#manualBindSubtitle").onclick=async function(){
-  const source=$("#manualSubtitleChoice").value;
-  const dest=currentSourceKey;
-  const status=$("#manualBindStatus");
-  if(!dest){status.textContent="请先加载要绑定的视频";return;}
-  const store=readSubtitleStore();
-  let entry=store[source];
-  if(!entry)try{entry=await subDbGet(source);}catch(e){}
-  if(!source||!entry||!Array.isArray(entry.subs)){status.textContent="请先选择字幕记录";return;}
-  const preview=entry.subs.slice(0,3).map(x=>x.text||"").join(" / ").slice(0,180);
-  if(!confirm(`请核对字幕内容：\n${entry.name||"未命名"}，${entry.subs.length}条\n${preview}\n\n确认将这份字幕绑定到当前视频吗？`))return;
-  // 仅保存小型映射，不复制整份字幕。避免 Safari localStorage 配额溢出。
-  const bindings=readSubtitleBindings();
-  bindings[dest]=source;
-  try{localStorage.setItem(SUBTITLE_BIND_MAP_KEY,JSON.stringify(bindings));}
-  catch(e){status.textContent="绑定保存失败：浏览器无法写入绑定信息（可能为隐私模式或存储已满）";return;}
-  restoreSavedSubtitles(dest,true);
-  status.textContent=`已绑定 ${subs.length} 条字幕到当前视频`;
-  refreshManualSubtitleChoices();
-};
-$("#deleteSavedSubtitle").onclick=async function(){
-  const key=$("#manualSubtitleChoice").value,status=$("#manualBindStatus");
-  if(!key){status.textContent="请先从下拉列表选择要删除的字幕";return;}
-  const legacy=readSubtitleStore();let entry=legacy[key];
-  if(!entry)try{entry=await subDbGet(key);}catch(e){}
-  if(!entry){status.textContent="字幕记录不存在，请刷新列表";await refreshManualSubtitleChoices();return;}
-  const label=entry.name||"未命名字幕";
-  if(!confirm(`确定删除以下字幕吗？\n\n${label}（${entry.subs?.length||0}条）\n\n会同时解除相关视频绑定。此操作不可撤销。`))return;
-  // 等待之前排队的保存完成，避免刚删除又被异步写回。
-  clearTimeout(subtitleSaveTimer);
-  try{
-    await subWriteSerial.catch(()=>{});
-    const bindings=readSubtitleBindings();
-    const affected=new Set([key]);
-    for(const [video,source] of Object.entries(bindings)){
-      if(source===key){delete bindings[video];affected.add(video);}
-    }
-    // 先删除存储中的实际字幕，再更新索引，防止误删其他视频。
-    await subDbDelete(key);
-    if(Object.prototype.hasOwnProperty.call(legacy,key)){
-      delete legacy[key];localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(legacy));
-    }
-    localStorage.setItem(SUBTITLE_BIND_MAP_KEY,JSON.stringify(bindings));
-    // 当前视频如果使用被删除的字幕，清空屏幕且禁止旧异步恢复覆盖。
-    if(affected.has(subtitleStorageKey())){
-      ++subRestoreToken;subs=[];current=0;currentSubtitleName="";
-      $("#subStatus").textContent="已删除当前关联字幕，请重新导入或绑定";
-      renderAll();
-    }
-    await refreshManualSubtitleChoices();
-    status.textContent=`已删除「${label}」并解除相关绑定；其他字幕保留。`;
-  }catch(e){status.textContent="删除未完成："+(e?.message||e);}
-};
-setInterval(refreshManualSubtitleChoices,15000);
 function now(){
   if(!playerReady || !player || typeof player.getCurrentTime!=="function") return 0;
   return Number(player.getCurrentTime())||0;
@@ -2457,33 +2080,17 @@ function adjustPlaybackSpeedStep(direction){
   select.dispatchEvent(new Event("change",{bubbles:true}));
 }
 
-function seekByStep(delta){
-  cancelSegmentPlay();
-  suppressAutoUntil=Date.now()+500;
-
-  // “播放本句”已锁定时，快进快退只能在本句范围内移动，并保留播放/暂停状态。
-  if(sentenceCaptionLocked&&lockedSentenceIndex>=0&&subs[lockedSentenceIndex]){
-    const index=lockedSentenceIndex;
-    const sentence=subs[index];
-    const lastSafeTime=Math.max(sentence.start,sentence.end-0.05);
-    const target=Math.max(sentence.start,Math.min(lastSafeTime,now()+delta));
-    seekKeepingSentence(target,index);
-    $("#sentenceStatus").textContent=isPlaying()
-      ? `🔒 第${index+1}句内${delta<0?"快退":"快进"} · 继续播放本句`
-      : `⏸ 第${index+1}句内${delta<0?"快退":"快进"} · 仍暂停并锁定本句`;
-    updatePlayCurrentButtonState();
-    return;
-  }
-
-  cancelSentencePlay();
-  seek(now()+delta);
-}
-
 $("#rewind").onclick=function(){
-  seekByStep(-(Number($("#rewindStep").value)||5));
+  cancelSegmentPlay();
+  cancelSentencePlay();
+  suppressAutoUntil=Date.now()+500;
+  seek(now()-(Number($("#rewindStep").value)||5));
 };
 $("#forward").onclick=function(){
-  seekByStep(Number($("#forwardStep").value)||5);
+  cancelSegmentPlay();
+  cancelSentencePlay();
+  suppressAutoUntil=Date.now()+500;
+  seek(now()+(Number($("#forwardStep").value)||5));
 };
 $("#togglePlay").onclick=function(){
   const wasPlaying=isPlaying();
@@ -2621,29 +2228,21 @@ function syncCaptionsAfterUserSeek(time){
   syncSegmentCaptionToVideoTime(t,true);
 }
 
-let playbackCountMode="segment";
-function currentCountItem(){
-  return playbackCountMode==="sentence"?subs[current]:videoSegments[selectedSegmentIndex];
-}
 function updateSegmentPlayCount(){
   const el=$("#segmentPlayCount");
   if(!el)return;
-  const item=currentCountItem();
-  el.value=String(item?Math.max(0,Math.floor(Number(item.playCount)||0)):0);
-  el.setAttribute("aria-label",playbackCountMode==="sentence"?"本句播放次数":"本段播放次数");
+  const seg=selectedSegmentIndex>=0?videoSegments[selectedSegmentIndex]:null;
+  el.value=String(seg?Math.max(0,Math.floor(Number(seg.playCount)||0)):0);
 }
+
 $("#segmentPlayCount").addEventListener("change",function(){
-  const item=currentCountItem();
-  if(!item){this.value="0";return;}
+  const seg=selectedSegmentIndex>=0?videoSegments[selectedSegmentIndex]:null;
+  if(!seg){this.value="0";return;}
   const value=Math.max(0,Math.floor(Number(this.value)||0));
-  item.playCount=value;this.value=String(value);
-  if(playbackCountMode==="sentence"){
-    saveSubtitlesNow();
-    $("#sentenceStatus").textContent=`第${current+1}句播放次数已改为 ${value}`;
-  }else{
-    saveSegmentsToLocal();
-    $("#segmentStatus").textContent=`第${selectedSegmentIndex+1}段播放次数已改为 ${value}`;
-  }
+  seg.playCount=value;
+  this.value=String(value);
+  saveSegmentsToLocal();
+  $("#segmentStatus").textContent=`第${selectedSegmentIndex+1}段播放次数已改为 ${value}`;
 });
 
 function renderSegments(){
@@ -2789,7 +2388,7 @@ function applyEditedSegmentTimes(message){
 }
 
 $("#setSegStart").onclick=function(){
-  if(!playerReady&&!recoverPlayerControls()){ $("#segmentStatus").textContent="播放器还没有准备好，请先播放一下视频"; return; }
+  if(!playerReady)return;
   segmentStart=now();
   segmentEditField="start";
   showSegmentTimes();
@@ -2797,7 +2396,7 @@ $("#setSegStart").onclick=function(){
 };
 
 $("#setSegEnd").onclick=function(){
-  if(!playerReady&&!recoverPlayerControls()){ $("#segmentStatus").textContent="播放器还没有准备好，请先播放一下视频"; return; }
+  if(!playerReady)return;
   segmentEnd=now();
   segmentEditField="end";
   showSegmentTimes();
@@ -2845,16 +2444,7 @@ window.selectVideoSegment=function(i){
 };
 
 function playSelectedSegment(){
-  if(!playerReady&&!recoverPlayerControls()){
-    $("#segmentStatus").textContent="播放器还没有准备好，请先播放一下视频";
-    return;
-  }
-  if(selectedSegmentIndex<0 || !videoSegments[selectedSegmentIndex]){
-    $("#segmentStatus").textContent="请先添加或选择一个视频分段";
-    return;
-  }
-  playbackCountMode="segment";
-  updateSegmentPlayCount();
+  if(!playerReady || selectedSegmentIndex<0 || !videoSegments[selectedSegmentIndex])return;
   const runId=++segmentPlaybackRunId;
   if(segmentAutoTimer){clearTimeout(segmentAutoTimer);segmentAutoTimer=null;}
   if(segmentStartTimer){clearTimeout(segmentStartTimer);segmentStartTimer=null;}
@@ -2873,29 +2463,12 @@ function playSelectedSegment(){
     ? `▶️ 正在连续播放第${lockedSegmentIndex+1}段`
     : `🔒 已锁定第${lockedSegmentIndex+1}段 · 播放本段不会自动换段`;
 
-  // YouTube/iPhone 上 seek 后立刻 play 有时会被播放器忽略。
-  // 先等待播放器真正到达分段开始点，再开始播放；超时也会强制尝试播放。
-  const startedAt=Date.now();
-  const startSegmentPlayback=function(){
+  segmentStartTimer=setTimeout(function(){
     if(runId!==segmentPlaybackRunId)return;
-    const current=now();
-    const reached=Math.abs(current-seg.start)<0.45 || current>=seg.start;
-    if(reached || Date.now()-startedAt>1200){
-      segmentStartTimer=null;
-      segmentPlayMode=true;
-      play();
-      setTimeout(()=>{
-        if(runId!==segmentPlaybackRunId)return;
-        if(!isPlaying()){
-          seek(seg.start);
-          play();
-        }
-      },220);
-      return;
-    }
-    segmentStartTimer=setTimeout(startSegmentPlayback,80);
-  };
-  segmentStartTimer=setTimeout(startSegmentPlayback,80);
+    segmentStartTimer=null;
+    segmentPlayMode=true;
+    play();
+  },250);
 }
 
 function scheduleNextSegmentPlay(finishedIndex){
@@ -2985,7 +2558,7 @@ function updateRemotePlaybackState(){
   }catch(e){}
 }
 installRemoteSegmentControls();
-document.addEventListener("visibilitychange",()=>{if(!document.hidden){recoverPlayerControls();installRemoteSegmentControls();}});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)installRemoteSegmentControls();});
 
 function deleteVideoSegment(i){
   if(segmentCaptionEditIndex>=0)commitSegmentCaptionEdit();
@@ -3283,32 +2856,7 @@ if(typeof ResizeObserver!=="undefined"){
   new ResizeObserver(()=>requestAnimationFrame(centerCurrentCard)).observe($("#list"));
 }
 window.addEventListener("resize",()=>requestAnimationFrame(centerCurrentCard));
-let subtitleFitFrame=0;
-function fitCurrentSubtitle(){
-  const el=$("#currentSubtitle");
-  if(!el||!el.clientWidth||!el.clientHeight)return;
-  // Measure in place without replacing text nodes, preserving native selection.
-  let low=8,high=22,best=8;
-  while(low<=high){
-    const size=Math.floor((low+high)/2);
-    el.style.fontSize=size+"px";
-    if(el.scrollHeight<=el.clientHeight+1 && el.scrollWidth<=el.clientWidth+1){best=size;low=size+1;}
-    else high=size-1;
-  }
-  el.style.fontSize=best+"px";
-}
-function scheduleSubtitleFit(){
-  cancelAnimationFrame(subtitleFitFrame);
-  subtitleFitFrame=requestAnimationFrame(fitCurrentSubtitle);
-}
-new MutationObserver(scheduleSubtitleFit).observe($("#currentSubtitle"),{childList:true,characterData:true,subtree:true});
-if(typeof ResizeObserver!=="undefined")new ResizeObserver(scheduleSubtitleFit).observe($("#subtitleWrap"));
-window.addEventListener("resize",scheduleSubtitleFit);
-if(document.fonts?.ready)document.fonts.ready.then(scheduleSubtitleFit);
-scheduleSubtitleFit();
-
 function updateTop(){
-  updateSegmentPlayCount();
   $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
   const subtitleEl=$("#currentSubtitle");
   const subtitleText=subs[current]?.text||"字幕会显示在这里";
@@ -3382,36 +2930,25 @@ function shiftedSubtitleTimes(items,offsetMs){
   if(shifted.some(s=>!Number.isFinite(s.start)||!Number.isFinite(s.end)||s.start<0||s.end<s.start))return null;
   return shifted;
 }
-function shiftAllSubtitleTimes(direction,fromCurrent=false,specifiedRange=false){
+function shiftAllSubtitleTimes(direction){
   const status=$("#subtitleShiftStatus");
   if(!subs.length){status.textContent="请先导入字幕";return;}
-  const milliseconds=Number($("#msStep").value);
-  let startIndex=fromCurrent?Math.max(0,Math.min(current,subs.length-1)):0;
-  let endIndex=subs.length;
-  if(specifiedRange){
-    const first=Number($("#subtitleRangeStart").value);
-    const last=Number($("#subtitleRangeEnd").value);
-    if(!Number.isInteger(first)||!Number.isInteger(last)||first<1||last<first||last>subs.length){
-      status.textContent=`请输入有效句编号：1～${subs.length}，结束句不能小于起始句`;
-      return;
-    }
-    startIndex=first-1;endIndex=last;
-  }
-  const shifted=shiftedSubtitleTimes(subs.slice(startIndex,endIndex),direction*milliseconds);
+  const milliseconds=Number($("#subtitleShiftMs").value);
+  const shifted=shiftedSubtitleTimes(subs,direction*milliseconds);
   if(!shifted){status.textContent="未调整：字幕时间不能早于 0 秒，请选择更小的毫秒数或检查时间";return;}
   cancelSentencePlay();
-  subs=[...subs.slice(0,startIndex),...shifted,...subs.slice(endIndex)];
+  subs=shifted;
   renderAll();
   saveSubtitlesNow();
-  const range=fromCurrent||specifiedRange?`第 ${startIndex+1} 句至第 ${endIndex} 句`:`全部 ${subs.length} 条字幕`;
-  status.textContent=`${range}已${direction<0?"提前":"延后"} ${milliseconds} 毫秒`;
+  status.textContent=`全部 ${subs.length} 条字幕已${direction<0?"提前":"延后"} ${milliseconds} 毫秒`;
+}
+for(const ms of [...Array.from({length:100},(_,i)=>i+1),200,300,400,500,1000,2000]){
+  const option=document.createElement("option");
+  option.value=String(ms);option.textContent=String(ms);option.selected=ms===100;
+  $("#subtitleShiftMs").appendChild(option);
 }
 $("#shiftSubtitlesEarlier").onclick=()=>shiftAllSubtitleTimes(-1);
 $("#shiftSubtitlesLater").onclick=()=>shiftAllSubtitleTimes(1);
-$("#shiftRemainingEarlier").onclick=()=>shiftAllSubtitleTimes(-1,true);
-$("#shiftRemainingLater").onclick=()=>shiftAllSubtitleTimes(1,true);
-$("#shiftRangeEarlier").onclick=()=>shiftAllSubtitleTimes(-1,false,true);
-$("#shiftRangeLater").onclick=()=>shiftAllSubtitleTimes(1,false,true);
 
 window.adjust=function(i,field,dir){
   const step=(Number($("#msStep").value)||10)/1000;
@@ -3422,14 +2959,12 @@ window.adjust=function(i,field,dir){
 };
 
 window.locate=function(i){
-  if(!Number.isInteger(i)||!subs[i])return;
+  if(!subs.length)return;
+  cancelSentencePlay();
   current=i;
-  if(playerReady){
-    playSelectedSentence();
-  }else{
-    updateTop();
-    $("#sentenceStatus").textContent="请先加载视频，再点定位播放本句";
-  }
+  suppressAutoUntil=Date.now()+700;
+  updateTop();
+  seek(subs[i].start);
 };
 
 window.removeSub=function(i){
@@ -3443,21 +2978,8 @@ function cancelSentencePlay(){
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
   if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
   playSentenceMode=false;
-  sentenceRunPlayCount=0;
   sentenceCaptionLocked=false;
   lockedSentenceIndex=-1;
-  updatePlayCurrentButtonState();
-}
-
-function updatePlayCurrentButtonState(){
-  const button=$("#playCurrent");
-  if(!button)return;
-  const sameLockedSentence=sentenceCaptionLocked&&lockedSentenceIndex===current&&!!subs[current];
-  if(!sameLockedSentence||!playSentenceMode){
-    button.textContent="播放本句";
-    return;
-  }
-  button.textContent=isPlaying()?"暂停本句":"继续本句";
 }
 
 function seekKeepingSentence(time,index){
@@ -3470,75 +2992,8 @@ function seekKeepingSentence(time,index){
   }
 }
 
-function refreshPreciseTime(){
-  const input=$("#preciseTime");
-  if(playerReady && document.activeElement!==input)input.value=fmt(now()).replace(",",".");
-}
-function preciseSeekTo(target){
-  const status=$("#preciseStatus");
-  if(!playerReady||!player){status.textContent="请先加载视频或音频";return;}
-  if(!Number.isFinite(target)||target<0){status.textContent="请输入有效时间，例如 01:02:30";return;}
-  const duration=currentSourceType==="youtube"?Number(player.getDuration?.()):Number($("#nativePlayer").duration);
-  target=Math.max(0,Number.isFinite(duration)&&duration>0?Math.min(target,duration):target);
-  syncCaptionsAfterUserSeek(target);
-  seek(target);
-  lastMonitoredTime=target;lastMonitorWallTime=Date.now();
-  $("#preciseTime").value=fmt(target).replace(",",".");
-  status.textContent="已定位到 "+$("#preciseTime").value;
-}
-for(const seconds of [...Array.from({length:10},(_,i)=>i+1),60,300,600]){
-  const option=document.createElement("option");option.value=seconds;
-  option.textContent=seconds<60?seconds+"秒":seconds/60+"分钟";
-  option.selected=seconds===5;$("#preciseStep").appendChild(option);
-}
-$("#preciseTime").addEventListener("change",()=>preciseSeekTo(parseNewCueTime($("#preciseTime").value)));
-$("#preciseTime").addEventListener("keydown",e=>{
-  if(e.key==="Enter"){e.preventDefault();$("#preciseTime").blur();}
-});
-$("#preciseBack").onclick=()=>preciseSeekTo(Math.max(0,now()-Number($("#preciseStep").value)));
-$("#preciseForward").onclick=()=>preciseSeekTo(now()+Number($("#preciseStep").value));
-
-function parseNewCueTime(value){
-  const text=String(value).trim().replace(",",".");
-  if(!/^(?:\d+:){0,2}\d+(?:\.\d{1,3})?$/.test(text))return NaN;
-  const parts=text.split(":").map(Number);
-  if(parts.length>1&&parts[parts.length-1]>=60)return NaN;
-  if(parts.length===3&&parts[1]>=60)return NaN;
-  const result=parts.reduce((total,n)=>total*60+n,0);
-  return Number.isFinite(result)?Math.round(result*1000)/1000:NaN;
-}
-$("#cueRewind").onclick=()=>$("#rewind").click();
-$("#cueTogglePlay").onclick=()=>$("#togglePlay").click();
-$("#cueForward").onclick=()=>$("#forward").click();
-$("#markCueStart").onclick=()=>{if(playerReady)$("#newCueStart").value=fmt(now());};
-$("#markCueEnd").onclick=()=>{if(playerReady)$("#newCueEnd").value=fmt(now());};
-$("#insertNewCue").onclick=function(){
-  const status=$("#newCueStatus");
-  const start=parseNewCueTime($("#newCueStart").value);
-  const end=parseNewCueTime($("#newCueEnd").value);
-  if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start){
-    status.textContent="请填写有效时间，结束时间必须晚于开始时间";return;
-  }
-  const text=$("#newCueText").value;
-  cancelSentencePlay();cancelSegmentPlay();pause();
-  const cue={start,end,text,playCount:0};
-  subs.push(cue);
-  subs.sort((a,b)=>a.start-b.start);
-  current=subs.indexOf(cue);
-  playbackCountMode="sentence";
-  // Hold the inserted cue for inspection until playback or navigation resumes.
-  sentenceCaptionLocked=true;lockedSentenceIndex=current;
-  if(playerReady)seek(start);
-  renderAll();saveSubtitlesNow();
-  status.textContent=`已添加第 ${current+1} 句，可在编辑字幕中继续修改`;
-  $("#newCueStart").value="";$("#newCueEnd").value="";$("#newCueText").value="";
-};
-
-function playSelectedSentence(resetRunCount=true){
+function playSelectedSentence(){
   if(!playerReady||!subs.length)return;
-  if(resetRunCount)sentenceRunPlayCount=0;
-  playbackCountMode="sentence";
-  updateSegmentPlayCount();
   cancelSegmentPlay();
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
   if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
@@ -3555,95 +3010,33 @@ function playSelectedSentence(resetRunCount=true){
     sentenceStartTimer=null;
     playSentenceMode=true;
     play();
-    setTimeout(updatePlayCurrentButtonState,60);
   },250);
 }
 
-function toggleSelectedSentencePlayback(){
-  if(!playerReady||!subs.length)return;
-  const sameLockedSentence=sentenceCaptionLocked&&lockedSentenceIndex===current&&!!subs[current];
-
-  // 在尚未开始播放的短暂定位阶段再次按下，也按“暂停本句”处理。
-  if(sameLockedSentence&&sentenceStartTimer){
-    clearTimeout(sentenceStartTimer);
-    sentenceStartTimer=null;
-    playSentenceMode=true;
-    pause();
-    $("#sentenceStatus").textContent=`⏸ 已暂停第${current+1}句 · 仍锁定本句`;
-    updatePlayCurrentButtonState();
-    return;
-  }
-
-  if(sameLockedSentence&&playSentenceMode){
-    if(isPlaying()){
-      pause();
-      $("#sentenceStatus").textContent=`⏸ 已暂停第${current+1}句 · 仍锁定本句`;
-    }else{
-      const sentence=subs[current];
-      const t=now();
-      // 暂停位置仍在本句内时原位续播；异常越界时才回到句首。
-      if(t<sentence.start-0.025||t>=sentence.end-0.025){
-        seekKeepingSentence(sentence.start,current);
-      }
-      suppressAutoUntil=Date.now()+300;
-      play();
-      $("#sentenceStatus").textContent=`▶️ 继续播放第${current+1}句 · 仍锁定本句`;
-    }
-    setTimeout(updatePlayCurrentButtonState,60);
-    return;
-  }
-
-  playSelectedSentence();
-}
-
 function scheduleNextSentencePlay(finishedIndex){
-  const interval=Math.max(0,Number($("#sentenceAutoInterval").value)||0);
+  const interval=Number($("#sentenceAutoInterval").value);
   const mode=$("#sentenceAutoMode").value;
-  const timesValue=$("#sentencePlayTimes").value;
-  const infinite=timesValue==="infinite";
-  const targetTimes=infinite?Infinity:Math.max(1,Number(timesValue)||1);
-  sentenceRunPlayCount+=1;
-
-  let targetIndex=finishedIndex;
-  let action="repeat";
-
-  if(!infinite && sentenceRunPlayCount>=targetTimes){
-    if(mode==="single"){
-      sentenceCaptionLocked=true;
-      lockedSentenceIndex=finishedIndex;
-      $("#sentenceStatus").textContent=`✅ 第${finishedIndex+1}句已播放${sentenceRunPlayCount}遍 · 已停止`;
-      return;
-    }
-    targetIndex=finishedIndex+1;
-    action="next";
-    sentenceRunPlayCount=0;
-    if(targetIndex>=subs.length){
-      $("#sentenceStatus").textContent="✅ 全部句子播放完毕";
-      return;
-    }
+  if(interval<0){
+    $("#sentenceStatus").textContent=mode==="continuous"
+      ? `第${finishedIndex+1}句播放完毕 · 间隔为无限，已停住`
+      : `🔒 第${finishedIndex+1}句播放完毕 · 间隔为无限，停在本句`;
+    return;
   }
-
-  if(infinite){
-    $("#sentenceStatus").textContent=interval===0
-      ? `第${finishedIndex+1}句已播放${sentenceRunPlayCount}遍 · 继续无限重复`
-      : `第${finishedIndex+1}句已播放${sentenceRunPlayCount}遍 · ${interval}秒后继续重复`;
-  }else if(action==="repeat"){
-    $("#sentenceStatus").textContent=interval===0
-      ? `第${finishedIndex+1}句 ${sentenceRunPlayCount}/${targetTimes}遍 · 即将重复本句`
-      : `第${finishedIndex+1}句 ${sentenceRunPlayCount}/${targetTimes}遍 · ${interval}秒后重复本句`;
-  }else{
-    $("#sentenceStatus").textContent=interval===0
-      ? `第${finishedIndex+1}句已完成${targetTimes}遍 · 即将播放下一句`
-      : `第${finishedIndex+1}句已完成${targetTimes}遍 · ${interval}秒后播放下一句`;
+  const targetIndex=mode==="continuous"?finishedIndex+1:finishedIndex;
+  if(targetIndex<0||targetIndex>=subs.length){
+    $("#sentenceStatus").textContent="全部句子播放完毕";
+    return;
   }
-
+  $("#sentenceStatus").textContent=interval===0
+    ? (mode==="continuous"?"即将播放下一句":"即将重复本句")
+    : `${interval}秒后${mode==="continuous"?"播放下一句":"重复本句"}`;
   sentenceAutoTimer=setTimeout(()=>{
     sentenceAutoTimer=null;
     sentenceCaptionLocked=false;
     lockedSentenceIndex=-1;
     current=targetIndex;
     updateTop();
-    playSelectedSentence(false);
+    playSelectedSentence();
   },interval*1000);
 }
 
@@ -3662,7 +3055,7 @@ $("#next").onclick=function(){
 };
 
 $("#playCurrent").onclick=function(){
-  toggleSelectedSentencePlayback();
+  playSelectedSentence();
 };
 
 function adjustPlayerVolume(delta){
@@ -3679,9 +3072,10 @@ function adjustPlayerVolume(delta){
   $("#videoStatus").textContent=`音量：${Math.round(volume)}%`;
 }
 
-// ===== iPhone / iPad：复合蓝牙键盘“输入焦点桥接” =====
-const isAppleTouchDevice =
-  /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+// ===== iPad 专用：复合蓝牙键盘“输入焦点桥接” =====
+// iPhone 完全沿用原来的快捷键逻辑；只有 iPad 才启用隐藏输入框桥接。
+const isIPadDevice =
+  /iPad/i.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 let keyboardBridge = null;
@@ -3698,19 +3092,13 @@ function subtitleSelectionActive(){
   return subtitleTouchActive || !!(selection && !selection.isCollapsed && $("#currentSubtitle").contains(selection.anchorNode));
 }
 let subtitleTouchActive=false;
-// iPad may cancel pointer events while opening native text selection.
-// Keep selection protection until the user explicitly taps outside this area.
-function beginSubtitleSelection(){subtitleTouchActive=true;}
-$("#currentSubtitle").addEventListener("pointerdown",beginSubtitleSelection);
-$("#currentSubtitle").addEventListener("touchstart",beginSubtitleSelection,{passive:true});
-document.addEventListener("pointerdown",e=>{
-  if(e.target.closest?.("#currentSubtitle"))return;
-  if(subtitleTouchActive){subtitleTouchActive=false;setTimeout(updateTop,0);}
-},true);
+$("#currentSubtitle").addEventListener("pointerdown",()=>{subtitleTouchActive=true;});
+document.addEventListener("pointerup",()=>{subtitleTouchActive=false;});
+document.addEventListener("pointercancel",()=>{subtitleTouchActive=false;});
 
 function focusKeyboardBridge(){
   if(subtitleSelectionActive())return;
-  if(!isAppleTouchDevice || !keyboardBridge || !keyboardBridgeEnabled || isRealEditor(document.activeElement))return;
+  if(!isIPadDevice || !keyboardBridge || !keyboardBridgeEnabled || isRealEditor(document.activeElement))return;
   try{
     keyboardBridge.focus({preventScroll:true});
   }catch(_){
@@ -3726,7 +3114,7 @@ function focusKeyboardBridge(){
   },0);
 }
 
-if(isAppleTouchDevice){
+if(isIPadDevice){
   keyboardBridge=document.createElement("input");
   keyboardBridge.id="ipadKeyboardBridge";
   keyboardBridge.type="text";
@@ -3735,7 +3123,7 @@ if(isAppleTouchDevice){
   keyboardBridge.spellcheck=false;
   keyboardBridge.setAttribute("aria-hidden","true");
   keyboardBridge.setAttribute("tabindex","-1");
-  // 尽量告诉 iPhone/iPad 浏览器：这里只接收硬件键盘，不需要弹出屏幕软键盘。
+  // 尽量告诉 iPad/Chrome：这里只接收硬件键盘，不需要弹出屏幕软键盘。
   keyboardBridge.setAttribute("inputmode","none");
   keyboardBridge.setAttribute("enterkeyhint","done");
   keyboardBridge.style.cssText=[
@@ -3811,8 +3199,8 @@ if(isAppleTouchDevice){
 
 function normalizeShortcutCode(e){
   if(e.code){
-    // 部分 iPhone/iPad 会把外接小键盘数字报告成 Digit，桥接状态下统一按小键盘处理。
-    if(isAppleTouchDevice && keyboardBridge && e.target===keyboardBridge){
+    // 部分 iPad 会把外接小键盘数字报告成 Digit，桥接状态下统一按小键盘处理。
+    if(isIPadDevice && keyboardBridge && e.target===keyboardBridge){
       const digitToNumpad={Digit0:"Numpad0",Digit1:"Numpad1",Digit3:"Numpad3",Digit5:"Numpad5",Digit6:"Numpad6",Digit7:"Numpad7",Digit8:"Numpad8",Digit9:"Numpad9"};
       if(digitToNumpad[e.code])return digitToNumpad[e.code];
     }
@@ -3830,8 +3218,8 @@ function normalizeShortcutCode(e){
   if(e.key==="ArrowDown")return "ArrowDown";
   if(e.key===" "||e.key==="Spacebar")return "Space";
 
-  // 只有苹果触屏设备的隐藏桥接输入框中，才把普通数字当作小键盘数字。
-  if(isAppleTouchDevice && keyboardBridge && e.target===keyboardBridge){
+  // 只有 iPad 的隐藏桥接输入框中，才把普通数字 0/1/3/5/6/7/8/9 当作小键盘数字。
+  if(isIPadDevice && keyboardBridge && e.target===keyboardBridge){
     if(e.key==="0")return "Numpad0";
     if(e.key==="1")return "Numpad1";
     if(e.key==="3")return "Numpad3";
@@ -3847,8 +3235,9 @@ function normalizeShortcutCode(e){
 function handleHardwareShortcut(e){
   const target=e.target;
 
-  // 普通输入框内不触发快捷键；隐藏桥接输入框除外。
-  if(!(isAppleTouchDevice && keyboardBridge && target===keyboardBridge) && isRealEditor(target))return;
+  // iPhone/其他设备：保持原逻辑，普通输入框内不触发快捷键。
+  // iPad：隐藏桥接输入框除外。
+  if(!(isIPadDevice && keyboardBridge && target===keyboardBridge) && isRealEditor(target))return;
   if(e.repeat)return;
 
   const code=normalizeShortcutCode(e);
@@ -3871,10 +3260,10 @@ function handleHardwareShortcut(e){
   if(!action)return;
 
   e.preventDefault();
-  if(isAppleTouchDevice)e.stopPropagation();
+  if(isIPadDevice)e.stopPropagation();
   action();
 
-  if(isAppleTouchDevice && keyboardBridge && target===keyboardBridge){
+  if(isIPadDevice && keyboardBridge && target===keyboardBridge){
     keyboardBridge.value="";
     if(keyboardBridgeBadge)keyboardBridgeBadge.textContent="⌨️ 小键盘：已响应 "+code;
   }
@@ -3890,14 +3279,7 @@ function startMonitor(){
   monitorTimer=setInterval(function(){
     if(!playerReady)return;
     updateRemotePlaybackState();
-    refreshPreciseTime();
     const t=now();
-    if(abLoopActive && abStart!==null && abEnd!==null && t>=abEnd-0.035){
-      seek(abStart);
-      if(!isPlaying())play();
-      lastMonitoredTime=abStart;
-      return;
-    }
     const wallNow=Date.now();
     const previousTime=lastMonitoredTime;
     const elapsed=lastMonitorWallTime ? (wallNow-lastMonitorWallTime)/1000 : 0;
@@ -3943,12 +3325,8 @@ function startMonitor(){
         const finishedIndex=lockedSentenceIndex;
         pause();
         seekKeepingSentence(sentence.end,finishedIndex);
-        sentence.playCount=Math.max(0,Math.floor(Number(sentence.playCount)||0))+1;
-        saveSubtitlesNow();
-        updateSegmentPlayCount();
         playSentenceMode=false;
         suppressAutoUntil=Date.now()+1000;
-        updatePlayCurrentButtonState();
         scheduleNextSentencePlay(finishedIndex);
       }
       return;
@@ -3958,6 +3336,302 @@ function startMonitor(){
     if(!sentenceCaptionLocked)syncSubtitleToVideoTime(t);
   },100);
 }
+
+function setCloudStatus(message,tone=""){
+  const el=$("#cloudStatus");
+  if(!el)return;
+  el.textContent=message;
+  el.className="status cloud-status"+(tone?" "+tone:"");
+}
+
+function cloudErrorText(error){
+  const text=String(error&&error.message||error||"");
+  if(/invalid login credentials/i.test(text))return "邮箱或密码不正确";
+  if(/email not confirmed/i.test(text))return "请先打开邮箱中的确认邮件，再回来登录";
+  if(/user already registered/i.test(text))return "这个邮箱已经注册，请直接登录";
+  if(/password/i.test(text)&&/6|characters|short/i.test(text))return "密码至少需要 6 位";
+  if(/failed to fetch|network/i.test(text))return "网络连接失败，请稍后再试";
+  return text||"未知错误";
+}
+
+function updateCloudPanels(){
+  const loggedIn=!!(cloudSession&&cloudSession.user);
+  $("#cloudLoginPanel").hidden=loggedIn;
+  $("#cloudUserPanel").hidden=!loggedIn;
+  if(loggedIn && !cloudReady)setCloudStatus(`已登录 ${cloudSession.user.email||"云账号"}，正在同步…`,"warn");
+}
+
+function parseLocalJson(key,fallback){
+  try{return JSON.parse(localStorage.getItem(key)||"")||fallback;}catch(e){return fallback;}
+}
+
+function collectCloudPayload(){
+  if(subs.length)saveSubtitlesNow();
+  try{localStorage.setItem(segmentStorageKey(),JSON.stringify(videoSegments));}catch(e){}
+  saveCloudUiSettings(false);
+  const values={};
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(!key||!isCloudDataKey(key)||key===CLOUD_LOCAL_CHANGED_KEY)continue;
+    if(key.startsWith("ytSegments:local:"))continue;
+    const raw=localStorage.getItem(key);
+    if(raw!==null)values[key]=raw;
+  }
+
+  try{
+    const list=JSON.parse(values[SAVED_VIDEO_KEY]||"[]");
+    values[SAVED_VIDEO_KEY]=JSON.stringify((Array.isArray(list)?list:[]).filter(v=>!String(v&&v.url||"").startsWith("local:")));
+  }catch(e){values[SAVED_VIDEO_KEY]="[]";}
+  try{
+    const store=JSON.parse(values[SUBTITLE_STORE_KEY]||"{}");
+    Object.keys(store).forEach(key=>{if(key.startsWith("local:"))delete store[key];});
+    values[SUBTITLE_STORE_KEY]=JSON.stringify(store);
+  }catch(e){values[SUBTITLE_STORE_KEY]="{}";}
+  try{
+    const map=JSON.parse(values[VIDEO_VOCAB_MAP_KEY]||"{}");
+    Object.keys(map).forEach(key=>{if(key.startsWith("local:"))delete map[key];});
+    values[VIDEO_VOCAB_MAP_KEY]=JSON.stringify(map);
+  }catch(e){values[VIDEO_VOCAB_MAP_KEY]="{}";}
+  try{
+    const books=JSON.parse(values[VOCAB_BOOK_KEY]||"[]");
+    for(const book of Array.isArray(books)?books:[]){
+      for(const entry of Array.isArray(book.entries)?book.entries:[])entry.imageIds=[];
+    }
+    values[VOCAB_BOOK_KEY]=JSON.stringify(Array.isArray(books)?books:[]);
+  }catch(e){values[VOCAB_BOOK_KEY]="[]";}
+  if(String(values[LAST_VIDEO_URL_KEY]||"").replace(/^"|"$/g,"").startsWith("local:"))values[LAST_VIDEO_URL_KEY]="";
+
+  return {type:"subtitle-editor-cloud",version:1,values};
+}
+
+async function applyCloudPayload(payload){
+  if(!payload||payload.type!=="subtitle-editor-cloud"||!payload.values)throw new Error("云端数据格式不正确");
+  const values=payload.values;
+  cloudApplying=true;
+  try{
+    const localVideos=parseLocalJson(SAVED_VIDEO_KEY,[]).filter(v=>String(v&&v.url||"").startsWith("local:"));
+    const localSubtitleStore=parseLocalJson(SUBTITLE_STORE_KEY,{});
+    const localVocabMap=parseLocalJson(VIDEO_VOCAB_MAP_KEY,{});
+    const localVocabBooks=parseLocalJson(VOCAB_BOOK_KEY,[]);
+    const localImageIds=new Map();
+    for(const book of Array.isArray(localVocabBooks)?localVocabBooks:[]){
+      for(const entry of Array.isArray(book.entries)?book.entries:[]){
+        if(entry&&entry.id)localImageIds.set(String(entry.id),Array.isArray(entry.imageIds)?entry.imageIds:[]);
+      }
+    }
+
+    for(let i=localStorage.length-1;i>=0;i--){
+      const key=localStorage.key(i);
+      if(key&&key.startsWith("ytSegments:")&&!key.startsWith("ytSegments:local:"))localStorage.removeItem(key);
+    }
+    for(const [key,rawValue] of Object.entries(values)){
+      if(!isCloudDataKey(key)||key.startsWith("ytSegments:local:"))continue;
+      let raw=String(rawValue??"");
+      if(key===SAVED_VIDEO_KEY){
+        let cloudVideos=[];try{cloudVideos=JSON.parse(raw)||[];}catch(e){}
+        raw=JSON.stringify([...(Array.isArray(cloudVideos)?cloudVideos:[]),...localVideos]);
+      }else if(key===SUBTITLE_STORE_KEY){
+        let cloudStore={};try{cloudStore=JSON.parse(raw)||{};}catch(e){}
+        Object.entries(localSubtitleStore).forEach(([id,item])=>{if(id.startsWith("local:"))cloudStore[id]=item;});
+        raw=JSON.stringify(cloudStore);
+      }else if(key===VIDEO_VOCAB_MAP_KEY){
+        let cloudMap={};try{cloudMap=JSON.parse(raw)||{};}catch(e){}
+        Object.entries(localVocabMap).forEach(([id,bookId])=>{if(id.startsWith("local:"))cloudMap[id]=bookId;});
+        raw=JSON.stringify(cloudMap);
+      }else if(key===VOCAB_BOOK_KEY){
+        let books=[];try{books=JSON.parse(raw)||[];}catch(e){}
+        for(const book of Array.isArray(books)?books:[]){
+          for(const entry of Array.isArray(book.entries)?book.entries:[]){
+            entry.imageIds=localImageIds.get(String(entry&&entry.id||""))||[];
+          }
+        }
+        raw=JSON.stringify(books);
+      }
+      nativeLocalStorageSet.call(localStorage,key,raw);
+    }
+
+    readVideoFolders();readSavedVideos();renderVideoFolderControls();renderSavedVideos();
+    readAiLibrary();renderAiLibrary();
+    readVocabBooks();await renderVocabBooks();
+    const restoredUrl=localStorage.getItem(LAST_VIDEO_URL_KEY)||"";
+    if(restoredUrl)$("#ytUrl").value=restoredUrl;
+    restoreCloudUiSettings();
+    switchVocabBookForVideo(restoredUrl||activeVideoKey(),false);
+    restoreSavedSubtitles(videoSourceKey(restoredUrl)||subtitleStorageKey(),true);
+    loadSegmentsFromLocal();renderAll();
+  }finally{cloudApplying=false;}
+}
+
+function saveCloudUiSettings(markChanged=true){
+  const settings={
+    speed:$("#speed").value,rewindStep:$("#rewindStep").value,forwardStep:$("#forwardStep").value,
+    msStep:$("#msStep").value,segmentMsStep:$("#segmentMsStep").value
+  };
+  const oldTracking=cloudTracking;
+  if(!markChanged)cloudTracking=false;
+  try{localStorage.setItem(CLOUD_UI_SETTINGS_KEY,JSON.stringify(settings));}catch(e){}
+  cloudTracking=oldTracking;
+}
+
+function restoreCloudUiSettings(){
+  const s=parseLocalJson(CLOUD_UI_SETTINGS_KEY,{});
+  for(const id of ["speed","rewindStep","forwardStep","msStep","segmentMsStep"]){
+    if(s[id]!==undefined && [...$("#"+id).options].some(o=>o.value===String(s[id])))$("#"+id).value=String(s[id]);
+  }
+}
+
+function scheduleCloudSave(){
+  if(!cloudReady||!cloudSession)return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=null;
+  if(cloudSaving){
+    cloudSaveAgain=true;
+    setCloudStatus("正在上传云端…","warn");
+    return;
+  }
+  cloudSaveTimer=setTimeout(()=>saveCloudNow(false),1400);
+  setCloudStatus("本机已保存，等待上传云端…","warn");
+}
+
+async function saveCloudNow(showNotice=true){
+  if(!cloudClient||!cloudSession)return false;
+  if(cloudSaving){cloudSaveAgain=true;return false;}
+  cloudSaving=true;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=null;
+  try{
+    if(showNotice)setCloudStatus("正在上传本机数据…","warn");
+    const now=new Date().toISOString();
+    const previousApplying=cloudApplying;
+    let payload;
+    cloudApplying=true;
+    try{payload=collectCloudPayload();}
+    finally{cloudApplying=previousApplying;}
+    const row={user_id:cloudSession.user.id,payload,client_updated_at:now,updated_at:now};
+    const {error}=await cloudClient.from(CLOUD_TABLE).upsert(row,{onConflict:"user_id"});
+    if(error)throw error;
+    nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(Date.parse(now)));
+    setCloudStatus(`已上传云端 · ${new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}`,"ok");
+    return true;
+  }catch(error){
+    setCloudStatus("云同步失败："+cloudErrorText(error),"warn");
+    return false;
+  }finally{
+    cloudSaving=false;
+    if(cloudSaveAgain){cloudSaveAgain=false;scheduleCloudSave();}
+  }
+}
+
+async function fetchCloudRow(){
+  const {data,error}=await cloudClient.from(CLOUD_TABLE)
+    .select("payload,client_updated_at,updated_at").eq("user_id",cloudSession.user.id).maybeSingle();
+  if(error)throw error;
+  return data;
+}
+
+async function downloadCloudNow(ask=false){
+  if(!cloudSession)return;
+  if(ask&&!confirm("确定用云端数据更新本机吗？本机的视频文件和生词图片会保留。"))return;
+  try{
+    setCloudStatus("正在下载云端数据…","warn");
+    const row=await fetchCloudRow();
+    if(!row){setCloudStatus("云端还没有数据，请先上传本机数据","warn");return;}
+    await applyCloudPayload(row.payload);
+    const syncedAt=Date.parse(row.client_updated_at||row.updated_at)||Date.now();
+    nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(syncedAt));
+    setCloudStatus("云端数据已下载到本机","ok");
+  }catch(error){setCloudStatus("下载失败："+cloudErrorText(error),"warn");}
+}
+
+async function startCloudSession(session){
+  cloudSession=session;cloudReady=false;cloudTracking=false;updateCloudPanels();
+  try{
+    const row=await fetchCloudRow();
+    if(row){
+      const cloudAt=Date.parse(row.client_updated_at||row.updated_at)||0;
+      const localAt=Number(localStorage.getItem(CLOUD_LOCAL_CHANGED_KEY))||0;
+      if(localAt>cloudAt+1000)await saveCloudNow(false);
+      else{
+        await applyCloudPayload(row.payload);
+        nativeLocalStorageSet.call(localStorage,CLOUD_LOCAL_CHANGED_KEY,String(cloudAt||Date.now()));
+      }
+    }else await saveCloudNow(false);
+    cloudReady=true;cloudTracking=true;
+    setCloudStatus(`已登录并同步 · ${session.user.email||"云账号"}`,"ok");
+  }catch(error){
+    cloudReady=true;cloudTracking=true;
+    setCloudStatus("登录成功，但同步失败："+cloudErrorText(error),"warn");
+  }
+}
+
+async function initCloudSync(){
+  restoreCloudUiSettings();
+  ["speed","rewindStep","forwardStep","msStep","segmentMsStep"].forEach(id=>{
+    $("#"+id).addEventListener("change",()=>saveCloudUiSettings(true));
+  });
+  if(!window.supabase||!window.supabase.createClient){setCloudStatus("云同步组件加载失败，请检查网络","warn");return;}
+  cloudClient=window.supabase.createClient(CLOUD_PROJECT_URL,CLOUD_PUBLISHABLE_KEY,{
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+  });
+  const {data,error}=await cloudClient.auth.getSession();
+  if(error)setCloudStatus("读取登录状态失败："+cloudErrorText(error),"warn");
+  if(data&&data.session)await startCloudSession(data.session);
+  else{cloudTracking=true;updateCloudPanels();}
+
+  cloudClient.auth.onAuthStateChange((event,session)=>{
+    if(event==="SIGNED_OUT"){
+      cloudSession=null;cloudReady=false;cloudTracking=true;updateCloudPanels();
+      setCloudStatus("已退出云同步；网页仍会保存在本机","warn");
+    }
+  });
+}
+
+$("#cloudLogin").onclick=async function(){
+  if(!cloudClient){setCloudStatus("云同步组件还没有加载，请刷新网页重试","warn");return;}
+  const email=$("#cloudEmail").value.trim();
+  const password=$("#cloudPassword").value;
+  if(!email||password.length<6){setCloudStatus("请输入邮箱和至少 6 位密码","warn");return;}
+  setCloudStatus("正在登录…","warn");
+  const {data,error}=await cloudClient.auth.signInWithPassword({email,password});
+  if(error){setCloudStatus("登录失败："+cloudErrorText(error),"warn");return;}
+  await startCloudSession(data.session);
+};
+
+$("#cloudSignup").onclick=async function(){
+  if(!cloudClient){setCloudStatus("云同步组件还没有加载，请刷新网页重试","warn");return;}
+  const email=$("#cloudEmail").value.trim();
+  const password=$("#cloudPassword").value;
+  if(!email||password.length<6){setCloudStatus("请输入邮箱和至少 6 位密码","warn");return;}
+  setCloudStatus("正在注册…","warn");
+  const {data,error}=await cloudClient.auth.signUp({email,password});
+  if(error){setCloudStatus("注册失败："+cloudErrorText(error),"warn");return;}
+  if(data.session)await startCloudSession(data.session);
+  else setCloudStatus("注册邮件已发送：请打开邮箱确认，然后回来登录","ok");
+};
+
+$("#cloudUploadNow").onclick=async function(){
+  if(confirm("确定用本机数据覆盖云端吗？"))await saveCloudNow(true);
+};
+$("#cloudDownloadNow").onclick=()=>downloadCloudNow(true);
+$("#cloudLogout").onclick=async function(){
+  if(cloudClient)await cloudClient.auth.signOut();
+};
+window.addEventListener("online",()=>{if(cloudReady)scheduleCloudSave();});
+document.addEventListener("visibilitychange",async()=>{
+  if(document.visibilityState!=="visible"){
+    if(cloudReady&&!cloudSaving)saveCloudNow(false);
+    return;
+  }
+  if(!cloudReady||cloudSaving)return;
+  try{
+    const row=await fetchCloudRow();
+    const cloudAt=row?(Date.parse(row.client_updated_at||row.updated_at)||0):0;
+    const localAt=Number(localStorage.getItem(CLOUD_LOCAL_CHANGED_KEY))||0;
+    if(row&&cloudAt>localAt+1000)await downloadCloudNow(false);
+  }catch(e){}
+});
+
+
 
 const TTS_ENDPOINT="https://braarnzywbodyfdclodc.supabase.co/functions/v1/tts";
 let ttsMp3Blob=null;
@@ -4251,7 +3925,6 @@ $("#ttsText").addEventListener("input",function(){
 applyTtsLevel(1,false);
 $("#aiListeningList").addEventListener("dblclick",function(e){const row=e.target.closest(".ai-choice");if(!row)return;const box=row.querySelector("input[data-id]");if(box)openAiItem(aiItems.find(x=>x.id===box.dataset.id));});
 
-$("#exportSubtitleBelow").onclick=()=>$("#exportBtn").click();
 $("#exportBtn").onclick=function(){
   if(!subs.length){alert("没有字幕");return}
   const text=subs.map((s,i)=>`${i+1}\n${fmt(s.start)} --> ${fmt(s.end)}\n${s.text.trim()}\n`).join("\n");
@@ -4278,12 +3951,11 @@ renderSavedVideos();
     $("#vocabStatus").textContent="图片存储初始化失败，请重新打开网页";
   }
 })();
-// 每次刷新，加载视频输入框保持空白。
-$("#ytUrl").value="";
-// 启动时不再把 default/上一个视频的字幕当作当前视频字幕显示。
-// 只有实际打开媒体、识别出专属 key 后才恢复对应字幕。
-subs=[];current=0;currentSubtitleName="";
-renderAll();
+try{
+  const lastUrl=localStorage.getItem(LAST_VIDEO_URL_KEY)||"";
+  if(lastUrl)$("#ytUrl").value=lastUrl;
+}catch(e){}
+restoreSavedSubtitles();
 
 let lastTouchEnd = 0;
 document.addEventListener("touchend", function(e){
@@ -4307,64 +3979,7 @@ function updateBuildTime(){
 }
 updateBuildTime();
 renderAll();
-
-// Bottom full-subtitle search
-(function(){
-  const input=document.getElementById("pageSearchInput");
-  const status=document.getElementById("pageSearchStatus");
-  const results=document.getElementById("subtitleSearchResults");
-  if(!input||!status||!results)return;
-
-  function esc(text){
-    return String(text??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  }
-  function highlight(text,q){
-    const source=String(text??"");
-    const lower=source.toLocaleLowerCase();
-    const needle=q.toLocaleLowerCase();
-    let out="",from=0,idx;
-    while((idx=lower.indexOf(needle,from))!==-1){
-      out+=esc(source.slice(from,idx))+"<mark>"+esc(source.slice(idx,idx+q.length))+"</mark>";
-      from=idx+q.length;
-    }
-    return out+esc(source.slice(from));
-  }
-  function runSearch(){
-    const q=input.value.trim();
-    results.innerHTML="";
-    if(!q){status.textContent="请输入要搜索的单词、短语或字幕内容";return;}
-    if(!subs.length){status.textContent="当前没有字幕，请先导入字幕";return;}
-    const found=[];
-    subs.forEach((cue,i)=>{
-      if(String(cue.text||"").toLocaleLowerCase().includes(q.toLocaleLowerCase()))found.push({cue,i});
-    });
-    if(!found.length){status.textContent=`没有找到“${q}”`;return;}
-    status.textContent=`找到 ${found.length} 句相关字幕（共 ${subs.length} 句）`;
-    results.innerHTML=found.map(({cue,i})=>`
-      <button type="button" class="subtitle-search-result secondary" data-search-row="${i}" style="display:block;width:100%;text-align:left;padding:11px 12px;background:#f3f3f4;color:#222;border-radius:12px">
-        <div style="font-weight:700;margin-bottom:5px">第 ${i+1} 句　${fmt(cue.start)} → ${fmt(cue.end)}</div>
-        <div style="font-weight:400;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere">${highlight(cue.text,q)}</div>
-      </button>`).join("");
-    results.querySelectorAll("[data-search-row]").forEach(btn=>{
-      btn.onclick=()=>{
-        const i=Number(btn.dataset.searchRow);
-        if(!Number.isInteger(i)||!subs[i])return;
-        current=i;
-        renderAll();
-        if(playerReady)seek(subs[i].start);
-        const editCard=document.querySelector('#list [data-row="'+i+'"]');
-        if(editCard)editCard.scrollIntoView({behavior:"smooth",block:"center"});
-        status.textContent=`已定位到第 ${i+1} 句：${q}`;
-      };
-    });
-  }
-  document.getElementById("pageSearchBtn").onclick=runSearch;
-  document.getElementById("pageSearchClear").onclick=()=>{input.value="";results.innerHTML="";status.textContent="搜索当前导入的全部字幕，结果会全部显示在下面";};
-  input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();runSearch();}});
-  input.addEventListener("input",()=>{if(input.value.trim())runSearch();else{results.innerHTML="";status.textContent="搜索当前导入的全部字幕，结果会全部显示在下面";}});
-})();
-
+initCloudSync();
 </script>
-
 </body>
 </html>
