@@ -280,7 +280,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div class="controls" id="splitActionControls">
     <button type="button" class="secondary" id="splitCueBtn">分割</button>
     <button type="button" class="secondary" id="splitMergeNextBtn">分割并合并到下一句</button>
-    <button type="button" class="secondary" id="mergeCurrentNextBtn">与下一句合并</button>
   </div>
   <div class="small" style="margin-top:7px">先在下方字幕文本中点击要分割的位置，再播放到分割时间点（也可暂停定位）；可反复分割，最后统一点完成。中英文双语行会按相同比例分割。</div>
   <div class="controls">
@@ -3435,23 +3434,6 @@ function doSubtitleSplit(mergeNext){
   renderAll();
   splitStatus(`已暂存第 ${i+1} 句分割；累计 ${splitUndoHistory.length} 步。可继续播放并分割，最后点“完成”。`);
 }
-// 直接合并当前句与下一句：不分割，保留双语行对应关系。
-document.getElementById('mergeCurrentNextBtn').onclick=()=>{
-  if(!subs.length){splitStatus('请先导入字幕');return;}
-  const selected=splitRowAtCaret();
-  const i=Number.isInteger(selected.index)&&subs[selected.index]?selected.index:current;
-  if(i>=subs.length-1){splitStatus('当前已经是最后一句，没有下一句可以合并');return;}
-  splitRemember();
-  const first=subs[i],second=subs[i+1];
-  first.end=Math.max(first.end,second.end);
-  first.text=mergeBilingualLines(first.text,second.text);
-  subs.splice(i+1,1);
-  current=i;
-  splitCaret={index:-1,pos:-1};
-  cancelSentencePlay();
-  renderAll();
-  splitStatus(`已暂存第 ${i+1} 句与下一句合并；累计 ${splitUndoHistory.length} 步，点击“完成”统一保存，可连续撤销。`);
-};
 document.getElementById('splitCueBtn').onclick=()=>doSubtitleSplit(false);
 document.getElementById('splitMergeNextBtn').onclick=()=>doSubtitleSplit(true);
 document.getElementById('splitUndoBtn').onclick=()=>{
@@ -3463,11 +3445,11 @@ document.getElementById('splitUndoBtn').onclick=()=>{
   splitStatus(`已撤销一步，还可撤销 ${splitUndoHistory.length} 步`);
 };
 document.getElementById('splitFinishBtn').onclick=()=>{
-  if(!splitUndoHistory.length){splitStatus('没有待完成的字幕操作');return;}
+  if(!splitUndoHistory.length){splitStatus('没有待完成的分割');return;}
   saveSubtitlesNow();
   const count=splitUndoHistory.length;
   splitUndoHistory.length=0;splitPending=false;
-  splitStatus(`已完成并保存 ${count} 步字幕操作，共 ${subs.length} 句`);
+  splitStatus(`已完成并保存 ${count} 步分割，共 ${subs.length} 句`);
 };
 
 function renderAll(){
