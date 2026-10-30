@@ -190,6 +190,17 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button class="secondary" id="bindVideoVocabBook">绑定单词本</button>
   </div>
 </div>
+<div class="card" id="webBrowserCard">
+  <b>打开任意网页</b>
+  <div class="urlrow" style="margin-top:10px">
+    <input id="generalWebUrl" type="text" inputmode="url" placeholder="输入或粘贴网页地址，例如 youtube.com" autocomplete="url">
+    <button id="openGeneralWeb" type="button">打开网页</button>
+  </div>
+  <div class="small" style="margin-top:8px">优先在下方尝试显示网站；如网站禁止嵌入，请点击「Safari打开」使用网站自己的播放、进度条和快进快退。部分网站需登录或不提供快进功能。</div>
+  <div class="controls"><button id="openExternalWeb" class="secondary" type="button">Safari打开（兼容模式）</button><button id="webBack" class="secondary" type="button">返回</button><button id="webForward" class="secondary" type="button">前进</button><button id="webRefresh" class="secondary" type="button">刷新</button></div>
+  <div id="generalWebStatus" class="status" aria-live="polite"></div>
+  <div id="embeddedWebPanel" style="margin-top:10px;display:none"><iframe id="generalWebFrame" title="网页浏览" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:65vh;border:1px solid #ddd;border-radius:12px;background:white"></iframe></div>
+</div>
 <div class="card">
   <b>3. 导入字幕</b>
   <div class="row" style="margin-top:10px">
@@ -663,6 +674,28 @@ function initCollapsibleCards(){
 }
 
 document.addEventListener("DOMContentLoaded",initCollapsibleCards);
+document.addEventListener("DOMContentLoaded",()=>{
+  const input=document.getElementById("generalWebUrl"), status=document.getElementById("generalWebStatus");
+  const frame=document.getElementById("generalWebFrame"), panel=document.getElementById("embeddedWebPanel");
+  let history=[],pos=-1;
+  function valid(){
+    let raw=input.value.trim();if(!raw){status.textContent="请先输入网址";return null;}
+    if(!/^https?:\/\//i.test(raw))raw="https://"+raw;
+    try{const u=new URL(raw);if(!["http:","https:"].includes(u.protocol))throw Error();return u.href;}
+    catch(e){status.textContent="网址格式不正确";return null;}
+  }
+  function show(url){input.value=url;panel.style.display="block";frame.src=url;
+    status.textContent="正在尝试内嵌打开。若显示空白、拒绝连接、无法登录或无法播放，请点「Safari打开（兼容模式）」。网页自身播放器可控制播放进度；本编辑器无法跨网站控制。";
+  }
+  function open(){const url=valid();if(!url)return;history=history.slice(0,pos+1);history.push(url);pos=history.length-1;show(url);}
+  document.getElementById("openGeneralWeb").onclick=open;
+  document.getElementById("openExternalWeb").onclick=()=>{const url=valid();if(url){const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";document.body.appendChild(a);a.click();a.remove();status.textContent="已尝试在浏览器打开；若被阻止，请在 Safari 中直接粘贴网址。";}};
+  document.getElementById("webBack").onclick=()=>{if(pos>0)show(history[--pos]);};
+  document.getElementById("webForward").onclick=()=>{if(pos<history.length-1)show(history[++pos]);};
+  document.getElementById("webRefresh").onclick=()=>{if(pos>=0)show(history[pos]);};
+  input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();open();}});
+});
+
 
 let player = null;
 let youtubePlayer = null;
