@@ -253,6 +253,60 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
 </div>
 
+<div class="card">
+  <div class="row">
+    <b style="flex:1">4. 编辑字幕</b>
+    <button id="exportBtn">导出 SRT</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1">每次调整（毫秒）<select id="msStep"></select></label>
+  </div>
+  <div class="controls">
+    <button class="secondary" id="shiftSubtitlesEarlier">整体时间向前</button>
+    <button class="secondary" id="shiftSubtitlesLater">整体时间向后</button>
+  </div>
+  <div class="controls">
+    <button class="secondary" id="shiftRemainingEarlier">从此句到末句时间向前</button>
+    <button class="secondary" id="shiftRemainingLater">从此句到末句时间向后</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="flex:1;min-width:0">从第几句<input id="subtitleRangeStart" type="number" min="1" step="1" inputmode="numeric" placeholder="起始句编号"></label>
+    <label style="flex:1;min-width:0">到第几句<input id="subtitleRangeEnd" type="number" min="1" step="1" inputmode="numeric" placeholder="结束句编号"></label>
+  </div>
+  <div class="controls">
+    <button class="secondary" id="shiftRangeEarlier">指定范围时间向前</button>
+    <button class="secondary" id="shiftRangeLater">指定范围时间向后</button>
+  </div>
+  <div class="controls" id="splitActionControls">
+    <button type="button" class="secondary" id="splitCueBtn">分割</button>
+    <button type="button" class="secondary" id="splitMergeNextBtn">分割并合并到下一句</button>
+  </div>
+  <div class="small" style="margin-top:7px">先在下方字幕文本中点击要分割的位置，再播放到分割时间点（也可暂停定位）；可反复分割，最后统一点完成。中英文双语行会按相同比例分割。</div>
+  <div class="controls">
+    <button type="button" id="splitFinishBtn">完成</button>
+    <button type="button" class="secondary" id="splitUndoBtn">撤销</button>
+  </div>
+  <div id="splitStatus" class="status">尚未进行分割</div>
+  <div id="subtitleShiftStatus" class="status" aria-live="polite"></div>
+  <div id="list" class="subtitle-strip"></div>
+</div>
+
+
+
+<div class="card">
+  <b>全部数据导出与恢复</b>
+  <div class="complete-backup-actions">
+    <button id="exportCompletePdf">导出 PDF</button>
+    <button class="secondary" id="exportCompleteJson">导出完整备份</button>
+    <label class="filebtn secondary import-all">导入完整备份
+      <input id="importCompleteJson" type="file" accept=".json,application/json">
+    </label>
+  </div>
+  <div id="completeBackupStatus" class="status">包含视频网址、分段、段落字幕、时间轴字幕、生词本和全部图片</div>
+</div>
+
+
+
  <div class="card">
    <b>播放设置</b>
   <div class="play-settings-grid">
@@ -416,49 +470,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="vocabStatus" class="status">内容会自动保存在本机</div>
   <div id="vocabList" class="vocab-list"></div>
 </div>
-
-<div class="card">
-  <div class="row">
-    <b style="flex:1">4. 编辑字幕</b>
-    <button id="exportBtn">导出 SRT</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1">每次调整（毫秒）<select id="msStep"></select></label>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="shiftSubtitlesEarlier">整体时间向前</button>
-    <button class="secondary" id="shiftSubtitlesLater">整体时间向后</button>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="shiftRemainingEarlier">从此句到末句时间向前</button>
-    <button class="secondary" id="shiftRemainingLater">从此句到末句时间向后</button>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <label style="flex:1;min-width:0">从第几句<input id="subtitleRangeStart" type="number" min="1" step="1" inputmode="numeric" placeholder="起始句编号"></label>
-    <label style="flex:1;min-width:0">到第几句<input id="subtitleRangeEnd" type="number" min="1" step="1" inputmode="numeric" placeholder="结束句编号"></label>
-  </div>
-  <div class="controls">
-    <button class="secondary" id="shiftRangeEarlier">指定范围时间向前</button>
-    <button class="secondary" id="shiftRangeLater">指定范围时间向后</button>
-  </div>
-  <div id="subtitleShiftStatus" class="status" aria-live="polite"></div>
-  <div id="list" class="subtitle-strip"></div>
-</div>
-
-
-
-<div class="card">
-  <b>全部数据导出与恢复</b>
-  <div class="complete-backup-actions">
-    <button id="exportCompletePdf">导出 PDF</button>
-    <button class="secondary" id="exportCompleteJson">导出完整备份</button>
-    <label class="filebtn secondary import-all">导入完整备份
-      <input id="importCompleteJson" type="file" accept=".json,application/json">
-    </label>
-  </div>
-  <div id="completeBackupStatus" class="status">包含视频网址、分段、段落字幕、时间轴字幕、生词本和全部图片</div>
-</div>
-
 
 <div class="card">
   <b>精准定位</b>
@@ -3335,6 +3346,112 @@ function updateTop(){
   requestAnimationFrame(centerCurrentCard);
 }
 
+// 字幕分割：保留多次操作历史，直到“完成”才持久化。
+const splitUndoHistory=[];
+let splitPending=false;
+let splitCaret={index:-1,pos:-1};
+function splitSnapshot(){return {subs:subs.map(s=>({...s})),current};}
+function splitRemember(){splitUndoHistory.push(splitSnapshot());splitPending=true;}
+function splitStatus(message){document.getElementById("splitStatus").textContent=message;}
+function splitRowAtCaret(){
+  const focused=document.activeElement;
+  if(focused&&focused.matches?.('textarea[data-text]')){
+    return {index:Number(focused.dataset.text),pos:focused.selectionStart};
+  }
+  return splitCaret.index>=0?{...splitCaret}:{index:current,pos:-1};
+}
+function splitLinesAtRatio(text,ratio,preferredPos){
+  const lines=String(text||'').split('\n');
+  // 两行双语字幕：各行独立切分，使中英文对应同一时间段。
+  if(lines.length>1){
+    const a=[],b=[];
+    for(const line of lines){
+      const [left,right]=splitOneLine(line,ratio,-1);
+      a.push(left);b.push(right);
+    }
+    return [a.join('\n'),b.join('\n')];
+  }
+  return splitOneLine(lines[0],ratio,preferredPos);
+}
+function splitOneLine(line,ratio,preferredPos){
+  if(!line)return ['',''];
+  let pos=preferredPos>=0&&preferredPos<=line.length?preferredPos:Math.round(line.length*ratio);
+  if(preferredPos<0){
+    // 优先在英文单词之间断开，避免截断单词；中文则按字切分。
+    if(/[A-Za-z]/.test(line)){
+      const boundaries=[...line.matchAll(/\s+|(?<=[,.;!?，。！？])\s*/g)].map(m=>m.index+m[0].length).filter(n=>n>0&&n<line.length);
+      if(boundaries.length)pos=boundaries.reduce((a,b)=>Math.abs(a-pos)<=Math.abs(b-pos)?a:b);
+    }
+  }
+  pos=Math.max(1,Math.min(line.length-1,pos));
+  return [line.slice(0,pos).trim(),line.slice(pos).trim()];
+}
+function splitBilingualText(text,ratio,caret){
+  const lines=String(text||'').split('\n');
+  if(lines.length===1)return splitLinesAtRatio(text,ratio,caret);
+  // 光标位置位于任一语言行时，用其在该行的相对位置同步切分所有语言行。
+  if(caret>=0){
+    let offset=0;
+    for(const line of lines){
+      if(caret<=offset+line.length){
+        if(line.length>1)ratio=Math.max(.02,Math.min(.98,(caret-offset)/line.length));
+        break;
+      }
+      offset+=line.length+1;
+    }
+  }
+  return splitLinesAtRatio(text,ratio,-1);
+}
+function mergeBilingualLines(left,right){
+  const a=String(left||'').split('\n'),b=String(right||'').split('\n');
+  if(a.length===b.length&&a.length>1)return a.map((v,i)=>[v,b[i]].filter(Boolean).join(' ')).join('\n');
+  return [left,right].filter(Boolean).join(' ');
+}
+function doSubtitleSplit(mergeNext){
+  if(!subs.length){splitStatus('请先导入字幕');return;}
+  const selected=splitRowAtCaret();
+  const i=Number.isInteger(selected.index)&&subs[selected.index]?selected.index:current;
+  const cue=subs[i];
+  if(!cue||cue.end-cue.start<.12){splitStatus('当前句时间太短，无法分割');return;}
+  const t=now();
+  if(!playerReady||t<=cue.start+.05||t>=cue.end-.05){splitStatus('请先播放到本句内部的分割时间点，再暂停点击分割');return;}
+  const ratio=(t-cue.start)/(cue.end-cue.start);
+  const [first,second]=splitBilingualText(cue.text,ratio,selected.index===i?selected.pos:-1);
+  if(!first.trim()||!second.trim()){splitStatus('分割位置过于靠近句首或句尾，请调整光标');return;}
+  splitRemember();
+  const oldEnd=cue.end;
+  cue.end=Math.round(t*1000)/1000;
+  cue.text=first;
+  const rest={...cue,start:cue.end,end:oldEnd,text:second};
+  if(mergeNext&&subs[i+1]){
+    const next=subs[i+1];
+    next.start=rest.start;
+    next.text=mergeBilingualLines(rest.text,next.text);
+  }else{subs.splice(i+1,0,rest);}
+  current=i;
+  splitCaret={index:-1,pos:-1};
+  cancelSentencePlay();
+  renderAll();
+  splitStatus(`已暂存第 ${i+1} 句分割；累计 ${splitUndoHistory.length} 步。可继续播放并分割，最后点“完成”。`);
+}
+document.getElementById('splitCueBtn').onclick=()=>doSubtitleSplit(false);
+document.getElementById('splitMergeNextBtn').onclick=()=>doSubtitleSplit(true);
+document.getElementById('splitUndoBtn').onclick=()=>{
+  if(!splitUndoHistory.length){splitStatus('没有可撤销的分割操作');return;}
+  const prev=splitUndoHistory.pop();subs=prev.subs;current=prev.current;
+  splitPending=splitUndoHistory.length>0;
+  splitCaret={index:-1,pos:-1};
+  cancelSentencePlay();renderAll();
+  splitStatus(`已撤销一步，还可撤销 ${splitUndoHistory.length} 步`);
+};
+document.getElementById('splitFinishBtn').onclick=()=>{
+  if(!splitUndoHistory.length){splitStatus('没有待完成的分割');return;}
+  saveSubtitlesNow();
+  const count=splitUndoHistory.length;
+  splitUndoHistory.length=0;splitPending=false;
+  splitStatus(`已完成并保存 ${count} 步分割，共 ${subs.length} 句`);
+};
+
 function renderAll(){
   const first=Math.max(0,current-10);
   const last=Math.min(subs.length,current+11);
@@ -3370,11 +3487,15 @@ function renderAll(){
   `;}).join("");
 
   $$("[data-text]").forEach(el=>{
+    const track=()=>{splitCaret={index:Number(el.dataset.text),pos:el.selectionStart};};
+    el.addEventListener('click',track);
+    el.addEventListener('keyup',track);
+    el.addEventListener('select',track);
     el.oninput=function(){
       const i=Number(el.dataset.text);
       subs[i].text=el.value;
       if(i===current)$("#currentSubtitle").textContent=el.value;
-      scheduleSubtitleSave();
+      if(!splitPending)scheduleSubtitleSave();
     };
   });
   $$("[data-time]").forEach(el=>{
