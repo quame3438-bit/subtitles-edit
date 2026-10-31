@@ -180,7 +180,8 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理</div>
+<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V2 · 10月31日</strong></div>
+<div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 键盘状态：正在检测。蓝牙连接由 iPad 管理；首次可能需要轻点网页一次。</div>
 
 <div class="card">
   <b>视频与字幕绑定</b>
@@ -4052,7 +4053,9 @@ function focusKeyboardBridge(){
   setTimeout(()=>{
     if(!keyboardBridgeBadge)return;
     const ok=document.activeElement===keyboardBridge;
-    keyboardBridgeBadge.textContent=ok?"⌨️ 小键盘：已激活":"⌨️ 小键盘：点此激活";
+    keyboardBridgeBadge.textContent=ok?"⌨️ 小键盘：已就绪":"⌨️ 小键盘：点此激活";
+    const status=document.getElementById("keyboardHelpStatus");
+    if(status)status.textContent=ok?"⌨️ 快捷键已就绪：可按 0 测试。编辑文字时自动暂停，离开输入框后恢复。":"⌨️ 网页已加载快捷键，但 Safari 尚未给予键盘焦点。请轻点右下角「小键盘：点此激活」，或轻点网页空白处。";
   },0);
 }
 
@@ -4220,10 +4223,14 @@ function handleHardwareShortcut(e){
   e.preventDefault();
   if(isAppleTouchDevice)e.stopPropagation();
   action();
+  const status=document.getElementById("keyboardHelpStatus");
+  if(status)status.textContent="⌨️ 已收到按键："+code+"。快捷键工作正常。";
 
   if(isAppleTouchDevice && keyboardBridge && target===keyboardBridge){
     keyboardBridge.value="";
-    if(keyboardBridgeBadge)keyboardBridgeBadge.textContent="⌨️ 小键盘：已响应 "+code;
+    if(keyboardBridgeBadge)keyboardBridgeBadge.textContent="⌨️ 已响应 "+code;
+    const status=document.getElementById("keyboardHelpStatus");
+    if(status)status.textContent="⌨️ 已收到按键："+code+"。快捷键工作正常。";
   }
 }
 
