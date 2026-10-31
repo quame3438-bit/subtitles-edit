@@ -180,7 +180,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V2 · 10月31日</strong></div>
+<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V3 · 10月31日</strong></div>
 <div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 键盘状态：正在检测。蓝牙连接由 iPad 管理；首次可能需要轻点网页一次。</div>
 
 <div class="card">
@@ -4096,16 +4096,25 @@ if(isAppleTouchDevice){
   keyboardBridgeBadge.title="如果小键盘没反应，点这里重新激活";
   keyboardBridgeBadge.style.cssText=[
     "position:fixed",
-    "right:8px",
-    "bottom:8px",
+    "right:12px",
+    "bottom:calc(12px + env(safe-area-inset-bottom))",
     "z-index:99999",
     "border:1px solid rgba(0,0,0,.18)",
-    "border-radius:999px",
-    "padding:6px 10px",
+    "border-radius:14px",
+    "width:108px",
+    "height:108px",
+    "padding:12px",
+    "display:flex",
+    "align-items:center",
+    "justify-content:center",
+    "text-align:center",
+    "white-space:normal",
+    "line-height:1.5",
+    "font-weight:700",
     "background:rgba(255,255,255,.94)",
     "color:#222",
-    "font-size:12px",
-    "box-shadow:0 2px 8px rgba(0,0,0,.14)"
+    "font-size:16px",
+    "box-shadow:0 3px 12px rgba(0,0,0,.20)"
   ].join(";");
   document.body.appendChild(keyboardBridgeBadge);
 
