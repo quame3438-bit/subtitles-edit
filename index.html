@@ -144,9 +144,9 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 }
 
 /* 时间字幕播放：中央“继续本句”跨两行；AB三个按钮等宽等高 */
-.time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:88px 88px;gap:8px;margin-top:10px}
-.time-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3}
-#playCurrent{grid-column:2;grid-row:1 / span 2}
+.time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:44px 44px;gap:8px;margin-top:10px}
+.time-play-grid button{width:100%;min-width:0;min-height:44px;padding:5px 4px;line-height:1.2}
+#playCurrent{grid-column:2;grid-row:1}#timeCuePause{grid-column:2;grid-row:2}
 #prev{grid-column:1;grid-row:1}#next{grid-column:3;grid-row:1}
 #cueRewind{grid-column:1;grid-row:2}#cueForward{grid-column:3;grid-row:2}
 .ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
@@ -167,6 +167,13 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 .card.drop-before{border-top:5px solid #1677ff!important}
 .card.drop-after{border-bottom:5px solid #1677ff!important}
 .module-drag-hint{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:#1677ff;color:white;padding:10px 18px;border-radius:24px;font-size:15px;font-weight:bold;z-index:99999;pointer-events:none;box-shadow:0 5px 18px #0004;white-space:nowrap}
+
+/* 紧凑播放按钮与独立时间编辑 */
+#timeSubtitlePlayCard .time-play-grid button{min-height:44px!important;height:44px!important;padding:5px 4px!important;background:#eee;color:#222}
+#cueTimeEditCard .grid{margin-top:8px}
+#subtitleEditCard .grid{display:block}
+#subtitleEditCard .grid>.small{margin-bottom:6px}
+#subtitleEditCard .cue-edit-text{display:block;width:100%;height:144px;min-height:144px;max-height:144px;resize:none;overflow:auto;font-size:22px;line-height:1.35;padding:12px 8px}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -248,7 +255,8 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
   <b>时间字幕播放</b>
   <div class="time-play-grid">
     <button class="secondary needsPlayer" id="prev">上一句</button>
-    <button class="needsPlayer" id="playCurrent">继续本句</button>
+    <button class="secondary needsPlayer" id="playCurrent">播放本句</button>
+    <button class="secondary needsPlayer" id="timeCuePause">播放／暂停</button>
     <button class="secondary needsPlayer" id="next">下一句</button>
     <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
     <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
@@ -620,6 +628,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
   <div id="pageSearchStatus" class="status">搜索当前导入的全部字幕，结果会全部显示在下面</div>
   <div id="subtitleSearchResults" style="display:grid;gap:8px;margin-top:10px"></div>
 </div>
+<div class="card" id="cueTimeEditCard"><b>编辑字幕 · 开始结束时间</b><div id="cueTimeEditor"></div></div>
 </div>
 
 <div id="vocabImageViewer" class="image-viewer" role="dialog" aria-modal="true" aria-label="生词图片预览" onclick="closeVocabImage(event)">
@@ -3617,15 +3626,11 @@ document.getElementById('splitFinishBtn').onclick=()=>{
   splitStatus(`已完成并保存 ${count} 步字幕操作，共 ${subs.length} 句`);
 };
 
-function renderAll(){
-  const first=Math.max(0,current-10);
-  const last=Math.min(subs.length,current+11);
-  $("#list").innerHTML=subs.slice(first,last).map((s,offset)=>{
-    const i=first+offset;
-    return `
-    <div class="item ${i===current?'active':''}" data-row="${i}">
-      <div class="grid">
-        <div>
+  const selectedCue=subs[current];
+  const timePanel=document.getElementById("cueTimeEditor");
+  if(timePanel){
+    const i=current;
+    timePanel.innerHTML=selectedCue?`<div class="small" style="margin-bottom:8px">第 ${i+1} 句 · 开始与结束时间</div><div class="grid">        <div>
           <div class="small">开始时间</div>
           <input class="timeinput" data-time="start" data-i="${i}" value="${fmt(s.start)}">
           <div class="timebox" style="margin-top:6px">
@@ -3641,8 +3646,28 @@ function renderAll(){
             <button onclick="adjust(${i},'end',1)">＋</button>
           </div>
         </div>
+</div>`:'<div class="small">请先导入字幕</div>';
+  }
+function fitCueEditText(el){
+  if(!el)return;
+  const max=22,min=11;
+  el.style.fontSize=max+'px';
+  for(let size=max;size>=min;size--){
+    el.style.fontSize=size+'px';
+    if(el.scrollHeight<=el.clientHeight+2)break;
+  }
+}
+
+function renderAll(){
+  const first=Math.max(0,current-10);
+  const last=Math.min(subs.length,current+11);
+  $("#list").innerHTML=subs.slice(first,last).map((s,offset)=>{
+    const i=first+offset;
+    return `
+    <div class="item ${i===current?'active':''}" data-row="${i}">
+      <div class="grid">
         <div class="small" style="grid-column:1/-1;margin-top:2px">编辑字幕</div>
-        <textarea data-text="${i}">${escapeHtml(s.text)}</textarea>
+        <textarea class="cue-edit-text" data-text="${i}">${escapeHtml(s.text)}</textarea>
       </div>
       <div class="controls">
         <button class="secondary" onclick="locate(${i})">定位</button>
@@ -3659,10 +3684,12 @@ function renderAll(){
     el.oninput=function(){
       const i=Number(el.dataset.text);
       subs[i].text=el.value;
+      fitCueEditText(el);
       if(i===current)$("#currentSubtitle").textContent=el.value;
       if(!splitPending)scheduleSubtitleSave();
     };
   });
+  document.querySelectorAll(".cue-edit-text").forEach(fitCueEditText);
   $$("[data-time]").forEach(el=>{
     el.onchange=function(){
       const i=Number(el.dataset.i), field=el.dataset.time;
@@ -3759,7 +3786,7 @@ function updatePlayCurrentButtonState(){
     button.textContent="播放本句";
     return;
   }
-  button.textContent=isPlaying()?"暂停本句":"继续本句";
+  button.textContent="播放本句";
 }
 
 function seekKeepingSentence(time,index){
@@ -3811,6 +3838,7 @@ function parseNewCueTime(value){
 }
 $("#cueRewind").onclick=()=>$("#rewind").click();
 $("#cueTogglePlay").onclick=()=>$("#togglePlay").click();
+$("#timeCuePause").onclick=()=>$("#togglePlay").click();
 $("#cueForward").onclick=()=>$("#forward").click();
 $("#markCueStart").onclick=()=>{if(playerReady)$("#newCueStart").value=fmt(now());};
 $("#markCueEnd").onclick=()=>{if(playerReady)$("#newCueEnd").value=fmt(now());};
