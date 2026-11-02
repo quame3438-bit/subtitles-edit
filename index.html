@@ -180,7 +180,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V3 · 10月31日</strong></div>
+<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V4 · 蓝牙本句播放修复</strong></div>
 <div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 键盘状态：正在检测。蓝牙连接由 iPad 管理；首次可能需要轻点网页一次。</div>
 
 <div class="card">
@@ -3160,19 +3160,25 @@ $("#nextSegment").onclick=function(){
 // System media controls also affect the phone lock screen and headset buttons.
 function handleRemoteSegmentAction(action){
   if(!playerReady||!player)return;
+  // 蓝牙耳机/锁屏媒体键优先遵循“播放模式设置”，不能偷偷切换到分段连续播放。
   if(action==="pause"){
-    cancelSegmentPlay();cancelSentencePlay();pause();
-    $("#videoStatus").textContent="遥控：已暂停";
-  }else{
-    if(!videoSegments.length){
-      $("#videoStatus").textContent="遥控：请先创建视频分段";
-      return;
+    if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
+    if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
+    pause();
+    $("#videoStatus").textContent="蓝牙遥控：已暂停";
+  }else if(subs.length){
+    if(action==="previous")$("#prev").click();
+    else if(action==="next")$("#next").click();
+    else if(!isPlaying()){
+      // 恢复本句时仍使用句子边界监控，不调用普通 play() 放任视频连续播放。
+      toggleSelectedSentencePlayback();
     }
-    if(selectedSegmentIndex<0)syncSegmentCaptionToVideoTime(now(),true);
-    if(selectedSegmentIndex<0)selectedSegmentIndex=0;
+    $("#videoStatus").textContent="蓝牙遥控：按字幕播放模式执行";
+  }else if(videoSegments.length){
     const button=action==="previous"?"prevSegment":action==="next"?"nextSegment":"playSegment";
     $("#"+button).click();
-    $("#videoStatus").textContent="遥控："+({previous:"上一段",next:"下一段",play:"播放本段"}[action]);
+  }else if(action==="play"){
+    play();
   }
   updateRemotePlaybackState();
 }
@@ -4014,6 +4020,9 @@ function scheduleNextSentencePlay(finishedIndex){
       sentenceCaptionLocked=true;
       lockedSentenceIndex=finishedIndex;
       $("#sentenceStatus").textContent=`✅ 第${finishedIndex+1}句已播放${sentenceRunPlayCount}遍 · 已停止`;
+      // 继续保持句子锁定；耳机恢复播放时会重新从本句开始。
+      sentenceCaptionLocked=true;
+      lockedSentenceIndex=finishedIndex;
       return;
     }
     targetIndex=finishedIndex+1;
@@ -4388,6 +4397,14 @@ function startMonitor(){
       return;
     }
 
+    if(sentenceCaptionLocked && lockedSentenceIndex>=0 && subs[lockedSentenceIndex] &&
+       $("#sentenceAutoMode").value==="single" && !playSentenceMode &&
+       t>=subs[lockedSentenceIndex].end-0.025 && isPlaying()){
+      pause();
+      seekKeepingSentence(subs[lockedSentenceIndex].end,lockedSentenceIndex);
+      $("#sentenceStatus").textContent="🔒 本句播放：已阻止越界连续播放";
+      return;
+    }
     if(Date.now()<suppressAutoUntil)return;
     if(!sentenceCaptionLocked)syncSubtitleToVideoTime(t);
   },100);
