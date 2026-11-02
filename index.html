@@ -326,7 +326,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
       <input id="importCompleteJson" type="file" accept=".json,application/json">
     </label>
   </div>
-  <div id="completeBackupStatus" class="status">包含视频网址、分段、段落字幕、时间轴字幕、生词本和全部图片</div>
+  <div id="completeBackupStatus" class="status">可自选：视频、分段、全部字幕及绑定、谐音、单词图片、AI听力、播放设置、页面布局</div>
 </div>
 
 
@@ -632,6 +632,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <div class="card" id="cueTimeEditCard"><b>编辑字幕 · 开始结束时间</b><div id="cueTimeEditor"></div></div>
 </div>
 
+<div id="backupChooseOverlay" hidden style="position:fixed;inset:0;z-index:20000;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px"><div style="background:white;border-radius:16px;padding:20px;width:min(100%,440px);max-height:85vh;overflow:auto"><h3 style="margin:0 0 12px">选择需要导出的内容</h3><div id="backupChooseList" style="display:grid;gap:12px"></div><div class="controls" style="margin-top:18px"><button type="button" class="secondary" id="backupChooseAll">全选／取消全选</button><button type="button" class="secondary" id="backupChooseCancel">取消</button><button type="button" id="backupChooseConfirm">确认导出</button></div><p class="small">只导出勾选的项目；未勾选的数据不会写入文件。原始本地视频、音频文件不包含在 JSON 中。</p></div></div>
 <div id="vocabImageViewer" class="image-viewer" role="dialog" aria-modal="true" aria-label="生词图片预览" onclick="closeVocabImage(event)">
   <button class="image-viewer-close" type="button" aria-label="关闭图片" onclick="closeVocabImage(event)">×</button>
   <img id="vocabImageViewerImg" src="" alt="生词图片大图" onclick="event.stopPropagation()">
@@ -1958,7 +1959,7 @@ $("#importAllVocab").onchange=async function(){
     const imported=normalizeVocabBooks(books);
     if(!imported.length)throw new Error("没有生词本");
     const oldImageIds=vocabBooks.flatMap(book=>book.entries.flatMap(entry=>entry.imageIds||[]));
-    for(const book of imported){
+    for(const book of (hasSection("vocab")?imported:[])){
       for(const entry of book.entries){
         const ids=[];
         for(const data of (entry.images||[]))ids.push(await putVocabImage(data));
@@ -2022,6 +2023,12 @@ async function collectCompleteBackup(){
     sentencePlayTimes:$("#sentencePlayTimes").value,
     segmentStores:collectSegmentStores(),
     subtitleStore:readSubtitleStore(),
+    subtitleBindings:readSubtitleBindings(),
+    subtitleDbRecords:Object.fromEntries(await subDbEntries()),
+    phoneticNotes:readPhoneticNotes(),
+    aiItems:[...aiItems],aiFolders:[...aiFolders],activeAiFolderFilter,
+    moduleOrder:localStorage.getItem(MODULE_ORDER_KEY)||"[]",
+    collapsedCards:localStorage.getItem(COLLAPSED_CARD_KEY)||"{}",
     activeVocabBookId,
     vocabBooks:await collectVocabBackupBooks()
   };
@@ -2036,17 +2043,50 @@ function downloadJsonFile(data,name){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-$("#exportCompleteJson").onclick=async function(){
-  const status=$("#completeBackupStatus");
-  try{
-    status.textContent="正在整理网址、分段、段落字幕、时间轴字幕、生词本和图片…";
-    const data=await collectCompleteBackup();
-    downloadJsonFile(data,`英语学习完整备份_${new Date().toISOString().slice(0,10)}.json`);
-    status.textContent="完整 JSON 已导出：包括网址、分段、段落字幕、时间轴字幕、生词本和图片";
-  }catch(e){
-    status.textContent="导出失败";
-    alert("导出失败：图片可能太多或本机空间不足");
+const BACKUP_GROUPS=[
+  {id:"videos",label:"学习视频列表、文件夹及网址",keys:["currentUrl","lastVideoUrl","savedVideos","videoFolders","activeVideoFolderFilter"]},
+  {id:"segments",label:"自定义视频分段、段落字幕",keys:["segmentStores"]},
+  {id:"subtitles",label:"全部时间轴字幕、字幕记录和视频字幕绑定",keys:["subtitleStore","subtitleBindings","subtitleDbRecords"]},
+  {id:"phonetic",label:"谐音输入框（所有视频、所有句子的谐音）",keys:["phoneticNotes"]},
+  {id:"ai",label:"AI 英语听力（列表、文件夹、字幕及MP3）",keys:["aiItems","aiFolders","activeAiFolderFilter","aiAudioFiles"]},
+  {id:"layout",label:"页面模块排序、折叠状态",keys:["moduleOrder","collapsedCards"]},
+  {id:"vocab",label:"全部生词本、单词和图片",keys:["vocabBooks","activeVocabBookId","videoVocabMap"]},
+  {id:"settings",label:"播放设置",keys:["segmentCaptionFontSize","segmentAutoMode","segmentAutoInterval","sentenceAutoMode","sentenceAutoInterval","sentencePlayTimes"]}
+];
+const backupOverlay=document.getElementById("backupChooseOverlay");
+const backupList=document.getElementById("backupChooseList");
+BACKUP_GROUPS.forEach(g=>{
+ const label=document.createElement("label");label.style.cssText="display:flex;gap:10px;align-items:center;padding:10px;background:#f5f5f7;border-radius:10px";
+ const cb=document.createElement("input");cb.type="checkbox";cb.value=g.id;cb.checked=true;cb.style.cssText="display:block;width:21px;height:21px;flex-shrink:0";
+ label.append(cb,document.createTextNode(g.label));backupList.appendChild(label);
+});
+function closeBackupChoose(){backupOverlay.hidden=true;}
+document.getElementById("backupChooseCancel").onclick=closeBackupChoose;
+document.getElementById("backupChooseAll").onclick=()=>{
+ const checks=[...backupList.querySelectorAll('input[type="checkbox"]')];
+ const target=!checks.every(x=>x.checked);checks.forEach(x=>x.checked=target);
+};
+$("#exportCompleteJson").onclick=()=>{backupOverlay.hidden=false;};
+document.getElementById("backupChooseConfirm").onclick=async function(){
+ const selected=[...backupList.querySelectorAll('input:checked')].map(x=>x.value);
+ if(!selected.length){alert("请至少选择一项内容");return;}
+ closeBackupChoose();const status=$("#completeBackupStatus");
+ try{
+  status.textContent="正在整理所选备份内容…";
+  const full=await collectCompleteBackup();
+  if(selected.includes("ai")){
+    full.aiAudioFiles={};
+    for(const item of full.aiItems){
+      const id=item.id; if(!id)continue;
+      const blob=await getLocalAiMp3(id);
+      if(blob)full.aiAudioFiles[id]=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob);});
+    }
   }
+  const data={type:full.type,version:4,exportedAt:full.exportedAt,selectedSections:selected};
+  BACKUP_GROUPS.filter(g=>selected.includes(g.id)).forEach(g=>g.keys.forEach(k=>data[k]=full[k]));
+  downloadJsonFile(data,`英语学习自选备份_${new Date().toISOString().slice(0,10)}.json`);
+  status.textContent="已导出："+BACKUP_GROUPS.filter(g=>selected.includes(g.id)).map(g=>g.label).join("、");
+ }catch(e){status.textContent="导出失败："+e.message;alert("导出失败："+e.message);}
 };
 
 function backupReportHtml(data){
@@ -2090,9 +2130,11 @@ $("#importCompleteJson").onchange=async function(){
   try{
     const data=JSON.parse(await file.text());
     if(!data || data.type!=="youtube-subtitle-editor-complete-backup")throw new Error("格式错误");
-    if(!confirm("导入会替换当前的网址、分段、段落字幕、时间轴字幕和全部生词本，继续吗？"))return;
-    const imported=normalizeVocabBooks(data.vocabBooks||[]);
-    if(!imported.length)throw new Error("缺少生词本");
+    const sections=Array.isArray(data.selectedSections)?data.selectedSections:null;
+    const hasSection=(name)=>!sections||sections.includes(name);
+    if(!confirm("将恢复备份中包含的项目，并替换对应本机数据；未包含的项目保持不变。继续吗？"))return;
+    const imported=hasSection("vocab")?normalizeVocabBooks(data.vocabBooks||[]):[];
+    if(hasSection("vocab")&&!imported.length)throw new Error("缺少生词本");
     const oldImageIds=vocabBooks.flatMap(book=>book.entries.flatMap(entry=>entry.imageIds||[]));
     for(const book of imported){
       for(const entry of book.entries){
@@ -2102,61 +2144,87 @@ $("#importCompleteJson").onchange=async function(){
         delete entry.images;delete entry.image;
       }
     }
-    for(let i=localStorage.length-1;i>=0;i--){
+    if(hasSection("segments")){for(let i=localStorage.length-1;i>=0;i--){
       const key=localStorage.key(i);
       if(key&&key.startsWith("ytSegments:"))localStorage.removeItem(key);
     }
     Object.entries(data.segmentStores||{}).forEach(([key,value])=>{
       if(key.startsWith("ytSegments:")&&Array.isArray(value))localStorage.setItem(key,JSON.stringify(value));
     });
-    localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(data.subtitleStore||{}));
-    localStorage.setItem(SAVED_VIDEO_FOLDER_KEY,JSON.stringify(Array.isArray(data.videoFolders)?data.videoFolders:[]));
+    }
+    if(hasSection("subtitles")){
+      if(data.subtitleStore)localStorage.setItem(SUBTITLE_STORE_KEY,JSON.stringify(data.subtitleStore));
+      if(data.subtitleBindings)localStorage.setItem(SUBTITLE_BIND_MAP_KEY,JSON.stringify(data.subtitleBindings));
+      if(data.subtitleDbRecords&&typeof data.subtitleDbRecords==="object"){
+        for(const [key,entry] of Object.entries(data.subtitleDbRecords))await subDbPut(key,entry);
+      }
+    }
+    if(hasSection("phonetic")&&data.phoneticNotes&&typeof data.phoneticNotes==="object"){
+      localStorage.setItem(PHONETIC_STORAGE_KEY,JSON.stringify(data.phoneticNotes));
+      phoneticLastKey="";syncPhoneticNote();
+    }
+    if(hasSection("layout")){
+      if(data.moduleOrder)localStorage.setItem(MODULE_ORDER_KEY,data.moduleOrder);
+      if(data.collapsedCards)localStorage.setItem(COLLAPSED_CARD_KEY,data.collapsedCards);
+    }
+    if(hasSection("ai")){
+      if(Array.isArray(data.aiItems))localStorage.setItem(AI_LIST_KEY,JSON.stringify(data.aiItems));
+      if(Array.isArray(data.aiFolders))localStorage.setItem(AI_FOLDER_KEY,JSON.stringify(data.aiFolders));
+      if(data.activeAiFolderFilter)localStorage.setItem(AI_FOLDER_FILTER_KEY,data.activeAiFolderFilter);
+      for(const [id,encoded] of Object.entries(data.aiAudioFiles||{})){
+        if(typeof encoded!=="string"||!encoded.startsWith("data:"))continue;
+        const blob=await (await fetch(encoded)).blob();await saveLocalAiMp3(id,blob);
+      }
+      readAiLibrary();renderAiLibrary();
+    }
+    if(hasSection("videos")){localStorage.setItem(SAVED_VIDEO_FOLDER_KEY,JSON.stringify(Array.isArray(data.videoFolders)?data.videoFolders:[]));
     localStorage.setItem(SAVED_VIDEO_FOLDER_FILTER_KEY,String(data.activeVideoFolderFilter||"__all__"));
     localStorage.setItem(SAVED_VIDEO_KEY,JSON.stringify(Array.isArray(data.savedVideos)?data.savedVideos:[]));
-    localStorage.setItem(VIDEO_VOCAB_MAP_KEY,JSON.stringify(data.videoVocabMap||{}));
-    if(Number.isFinite(Number(data.segmentCaptionFontSize))){
+    }
+    if(hasSection("vocab"))localStorage.setItem(VIDEO_VOCAB_MAP_KEY,JSON.stringify(data.videoVocabMap||{}));
+    if(hasSection("settings")&&Number.isFinite(Number(data.segmentCaptionFontSize))){
       segmentCaptionFontSize=Math.max(12,Math.min(36,Number(data.segmentCaptionFontSize)));
       localStorage.setItem(SEGMENT_CAPTION_FONT_KEY,String(segmentCaptionFontSize));
       applySegmentCaptionFontSize();
     }
-    if(data.segmentAutoMode==="single"||data.segmentAutoMode==="repeat"||data.segmentAutoMode==="continuous"){
+    if(hasSection("settings")&&["single","repeat","continuous"].includes(data.segmentAutoMode)){
       const restoredMode=data.segmentAutoMode==="continuous"?"continuous":"single";
       $("#segmentAutoMode").value=restoredMode;
       localStorage.setItem(SEGMENT_AUTO_MODE_KEY,restoredMode);
     }
-    if(["-1","0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.segmentAutoInterval))){
+    if(hasSection("settings")&&["-1","0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.segmentAutoInterval))){
       $("#segmentAutoInterval").value=String(data.segmentAutoInterval);
       localStorage.setItem(SEGMENT_AUTO_INTERVAL_KEY,String(data.segmentAutoInterval));
     }
-    if(data.sentenceAutoMode==="single"||data.sentenceAutoMode==="continuous"){
+    if(hasSection("settings")&&["single","continuous"].includes(data.sentenceAutoMode)){
       $("#sentenceAutoMode").value=data.sentenceAutoMode;
       localStorage.setItem(SENTENCE_AUTO_MODE_KEY,data.sentenceAutoMode);
     }
-    if(["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.sentenceAutoInterval))){
+    if(hasSection("settings")&&["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.sentenceAutoInterval))){
       $("#sentenceAutoInterval").value=String(data.sentenceAutoInterval);
       localStorage.setItem(SENTENCE_AUTO_INTERVAL_KEY,String(data.sentenceAutoInterval));
     }
-    if(["infinite","1","2","3","4","5","6","7","8","9","10","20","30","40","50","60","70","80","90","100"].includes(String(data.sentencePlayTimes))){
+    if(hasSection("settings")&&["infinite","1","2","3","4","5","6","7","8","9","10","20","30","40","50","60","70","80","90","100"].includes(String(data.sentencePlayTimes))){
       $("#sentencePlayTimes").value=String(data.sentencePlayTimes);
       localStorage.setItem(SENTENCE_PLAY_TIMES_KEY,String(data.sentencePlayTimes));
     }
     const restoredUrl=String(data.currentUrl||data.lastVideoUrl||"");
-    localStorage.setItem(LAST_VIDEO_URL_KEY,restoredUrl);
-    vocabBooks=imported;
+    if(hasSection("videos"))localStorage.setItem(LAST_VIDEO_URL_KEY,restoredUrl);
+    if(hasSection("vocab")){vocabBooks=imported;
     activeVocabBookId=imported.some(x=>x.id===data.activeVocabBookId)?data.activeVocabBookId:imported[0].id;
     localStorage.setItem(VOCAB_BOOK_KEY,JSON.stringify(vocabBooks));
-    await deleteVocabImages(oldImageIds).catch(()=>{});
-    $("#ytUrl").value=restoredUrl;
+    await deleteVocabImages(oldImageIds).catch(()=>{});}
+    if(hasSection("videos"))$("#ytUrl").value=restoredUrl;
     readVideoFolders();readSavedVideos();renderVideoFolderControls();renderSavedVideos();
     await renderVocabBooks();
-    switchVocabBookForVideo(restoredUrl,false);
-    currentSourceKey="";subs=[];current=0;currentSubtitleName="";
+    if(hasSection("vocab"))switchVocabBookForVideo(restoredUrl,false);
+    if(hasSection("subtitles")||hasSection("videos")){currentSourceKey="";subs=[];current=0;currentSubtitleName="";}
     $("#subStatus").textContent="备份已恢复，请打开对应视频后查看字幕";
-    loadSegmentsFromLocal();renderAll();
+    if(hasSection("segments"))loadSegmentsFromLocal();renderAll();
     $("#completeBackupStatus").textContent="完整备份已导入并自动保存";
-    alert("导入成功：网址、分段、段落字幕、时间轴字幕、生词本和图片已恢复");
+    alert("导入成功：备份中包含的项目已恢复，其他项目保持不变。页面布局恢复请刷新网页。");
   }catch(e){
-    alert("导入失败：请选择本网页导出的完整备份 JSON 文件");
+    alert("导入失败："+(e?.message||e));
   }finally{this.value="";}
 };
 
