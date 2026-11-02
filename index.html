@@ -1959,7 +1959,7 @@ $("#importAllVocab").onchange=async function(){
     const imported=normalizeVocabBooks(books);
     if(!imported.length)throw new Error("没有生词本");
     const oldImageIds=vocabBooks.flatMap(book=>book.entries.flatMap(entry=>entry.imageIds||[]));
-    for(const book of (hasSection("vocab")?imported:[])){
+    for(const book of imported){
       for(const entry of book.entries){
         const ids=[];
         for(const data of (entry.images||[]))ids.push(await putVocabImage(data));
@@ -2328,7 +2328,7 @@ function ensureNativePlayer(){
   });
   video.addEventListener("error",()=>{
     if(currentSourceType!=="direct"&&currentSourceType!=="local"&&currentSourceType!=="audio")return;
-    playerReady=false;setPlayerEnabled(false);$("#videoStatus").textContent="视频加载失败：请检查格式或网络直链";
+    playerReady=false;setPlayerEnabled(false);$("#videoStatus").textContent="视频无法解码或加载（错误码 "+(video.error?.code||"未知")+"）。请确认视频编码为 H.264/AAC MP4，或换 Safari 打开。";
   });
   return nativePlayerAdapter;
 }
@@ -2505,30 +2505,20 @@ $("#localVideoFile").onchange=async function(){
   this.value="";
   const src=URL.createObjectURL(file);
   const legacyKey=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
-  let key=legacyKey;
-  try{
-    $("#videoStatus").textContent="正在识别视频…";
-    key=await localMediaFingerprint(file);
-  }catch(e){
-    // Fingerprinting is optional: never block video loading on crypto/browser errors.
-    console.warn("视频指纹计算失败，使用旧版标识",e);
-  }
-  // Only load subtitles already saved against this exact fingerprint.
-  // Old keys are retained untouched; manual binding is available above.
-  let selectedKey=key;
-  // Never make media playback depend on subtitle migration succeeding.
+  // 先加载视频，绝不等待字幕指纹计算，避免大文件选择后一直不能播放。
   try{
     $("#ytUrl").value=`本地媒体：${file.name}`;
-    loadNativeVideo(src,selectedKey,file.name,"local");
+    loadNativeVideo(src,legacyKey,file.name,"local");
   }catch(e){
-    console.error("视频初始化失败",e);
+    console.error("本地视频加载异常",e);
     const video=$("#nativePlayer");
-    currentSourceType="local";currentSourceKey=selectedKey;
-    $("#player").style.display="none";
-    video.style.display="block";
+    currentSourceType="local";currentSourceKey=legacyKey;
+    $("#player").style.display="none";video.style.display="block";
     video.src=src;video.load();
-    $("#videoStatus").textContent="视频已选择；如未自动播放，请点击视频上的播放键。字幕初始化异常："+(e?.message||e);
+    $("#videoStatus").textContent="视频已选择，请点击视频画面中的播放键";
   }
+  // 异步计算标识只用于字幕匹配；播放期间不再切换标识或重新加载视频。
+  // 避免与原有 local:v2 字幕记录不一致时发生错误绑定。
 };
 
 async function refreshManualSubtitleChoices(){
