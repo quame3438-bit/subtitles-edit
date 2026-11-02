@@ -2303,8 +2303,9 @@ function ensureNativePlayer(){
   video.addEventListener("loadedmetadata",()=>{
     if(currentSourceType!=="direct"&&currentSourceType!=="local"&&currentSourceType!=="audio")return;
     playerReady=true;setPlayerEnabled(true);applySpeed();startMonitor();loadSegmentsFromLocal();
-    restorePlaybackPosition();
-    $("#videoStatus").textContent=`视频已加载：${nativeSourceName}`;
+    // 本地文件不自动跳转历史进度：iOS Safari 在 metadata 阶段 seek 可能导致黑屏。
+    if(currentSourceType!=="local"&&currentSourceType!=="audio")restorePlaybackPosition();
+    $("#videoStatus").textContent=`视频已加载：${nativeSourceName}，请点击视频画面上的 ▶ 播放`;
     if(currentSourceType==="direct")setTimeout(()=>autoSaveCurrentVideo(true),100);
   });
   video.addEventListener("play",()=>{
@@ -2326,6 +2327,9 @@ function ensureNativePlayer(){
     lastMonitorWallTime=Date.now();
     if(Date.now()>programmaticSeekUntil)syncCaptionsAfterUserSeek(t);
   });
+  video.addEventListener("stalled",()=>{
+    if(currentSourceType==="local")$("#videoStatus").textContent="视频加载停滞。请尝试点击原生播放键；若仍黑屏，请检查视频编码是否受 Safari 支持。";
+  });
   video.addEventListener("error",()=>{
     if(currentSourceType!=="direct"&&currentSourceType!=="local"&&currentSourceType!=="audio")return;
     playerReady=false;setPlayerEnabled(false);$("#videoStatus").textContent="视频无法解码或加载（错误码 "+(video.error?.code||"未知")+"）。请确认视频编码为 H.264/AAC MP4，或换 Safari 打开。";
@@ -2345,10 +2349,19 @@ function loadNativeVideo(src,key,name,type){
   if(nativeObjectUrl&&nativeObjectUrl!==src){URL.revokeObjectURL(nativeObjectUrl);nativeObjectUrl="";}
   if(type==="local"||type==="audio")nativeObjectUrl=src;
   player=ensureNativePlayer();playerReady=false;setPlayerEnabled(false);
-  video.src=src;video.load();
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  video.controls=true;
+  video.autoplay=false;
+  video.preload="metadata";
+  video.muted=false;
+  video.playsInline=true;
+  video.src=src;
+  video.load();
   restoreSavedSubtitles(key,true);switchVocabBookForVideo(key,true);loadSegmentsFromLocal();
   $("#videoStatus").textContent=type==="audio"?"正在加载 MP3…":"正在加载视频…";
-  video.play().catch(()=>{$("#videoStatus").textContent=type==="audio"?"MP3 已加载，请点下方播放按钮":"视频已选择，请点下方播放按钮";});
+  // iPhone/iPad 必须由用户点击原生播放键启动，不在加载时抢先调用 play()。
 }
 
 let ytEmbedHost="https://www.youtube.com";
