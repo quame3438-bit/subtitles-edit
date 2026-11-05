@@ -856,7 +856,7 @@ let playSentenceMode = false;
 let sentenceCaptionLocked = false;
 let lockedSentenceIndex = -1;
 let sentenceAutoTimer = null;
-let sentenceStartTimer = null;
+let sentenceSeekDeadline = 0;
 let sentenceRunPlayCount = 0;
 let monitorTimer = null;
 let abStart=null,abEnd=null,abLoopActive=false;
@@ -954,6 +954,9 @@ for(const [seconds,label] of [[20,"20 秒"],[30,"30 秒"],[60,"1 分钟"],[180,"
     $(id).appendChild(o);
   }
 }
+const PLAYBACK_SPEED_KEY="ytPlaybackSpeed:v1";
+let savedPlaybackSpeed=null;
+try{savedPlaybackSpeed=localStorage.getItem(PLAYBACK_SPEED_KEY);}catch(e){}
 for(let n=2;n<=20;n++){
   const value=n/10;
   const o=document.createElement("option");
@@ -961,6 +964,10 @@ for(let n=2;n<=20;n++){
   o.textContent=value.toFixed(1)+"×";
   if(n===10)o.selected=true;
   $("#speed").appendChild(o);
+}
+const playbackSpeedSelect=$("#speed");
+if(Array.from(playbackSpeedSelect.options).some(option=>option.value===savedPlaybackSpeed)){
+  playbackSpeedSelect.value=savedPlaybackSpeed;
 }
 for(const [value,label] of [[-1,"无限"],[0,"0 秒"],[1,"1 秒"],[2,"2 秒"],[3,"3 秒"],[4,"4 秒"],[5,"5 秒"],[6,"6 秒"],[7,"7 秒"],[8,"8 秒"],[9,"9 秒"],[10,"10 秒"],[30,"30 秒"],[60,"1 分钟"]]){
   const o=document.createElement("option");
@@ -2647,7 +2654,10 @@ function applySpeed(){
     player.setPlaybackRate(best);
   }
 }
-$("#speed").onchange=applySpeed;
+playbackSpeedSelect.onchange=()=>{
+  try{localStorage.setItem(PLAYBACK_SPEED_KEY,playbackSpeedSelect.value);}catch(e){}
+  applySpeed();
+};
 
 function adjustPlaybackSpeedStep(direction){
   const select=$("#speed");
@@ -2655,7 +2665,7 @@ function adjustPlaybackSpeedStep(direction){
   const next=Math.max(0,Math.min(select.options.length-1,select.selectedIndex+(direction<0?-1:1)));
   if(next===select.selectedIndex)return;
   select.selectedIndex=next;
-  // 同时触发现有的播放器调速和云端设置保存逻辑。
+  // 与下拉菜单共用调速和保存逻辑。
   select.dispatchEvent(new Event("change",{bubbles:true}));
 }
 
@@ -3163,7 +3173,6 @@ function handleRemoteSegmentAction(action){
   if(!playerReady||!player)return;
   // 蓝牙耳机/锁屏媒体键优先遵循“播放模式设置”，不能偷偷切换到分段连续播放。
   if(action==="pause"){
-    if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
     if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
     pause();
     $("#videoStatus").textContent="蓝牙遥控：已暂停";
@@ -3818,8 +3827,8 @@ window.removeSub=function(i){
 };
 
 function cancelSentencePlay(){
+  sentenceSeekDeadline=0;
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
-  if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
   playSentenceMode=false;
   sentenceRunPlayCount=0;
   sentenceCaptionLocked=false;
@@ -3920,38 +3929,34 @@ function playSelectedSentence(resetRunCount=true){
   updateSegmentPlayCount();
   cancelSegmentPlay();
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
-  if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
   playSentenceMode=false;
   sentenceCaptionLocked=true;
   lockedSentenceIndex=current;
   suppressAutoUntil=Date.now()+1200;
-  pause();
-  seekKeepingSentence(subs[lockedSentenceIndex].start,lockedSentenceIndex);
+  seekToSentenceStart(lockedSentenceIndex);
   $("#sentenceStatus").textContent=$("#sentenceAutoMode").value==="continuous"
     ? `▶️ 正在连续播放第${lockedSentenceIndex+1}句`
     : `🔒 已锁定第${lockedSentenceIndex+1}句 · 播放本句不会自动换句`;
   playSentenceMode=true; // 定位阶段即启用边界保护，避免蓝牙/原生播放器抢先播放
-  sentenceStartTimer=setTimeout(function(){
-    sentenceStartTimer=null;
-    play();
-    setTimeout(updatePlayCurrentButtonState,60);
-  },250);
+  // 在点击事件中发出播放请求，保留浏览器的用户操作授权。
+  play();
+  updatePlayCurrentButtonState();
+}
+
+function seekToSentenceStart(index){
+  const sentence=subs[index];
+  sentenceSeekDeadline=0;
+  if(currentSourceType==="youtube"){
+    // 用户主动定位优先于尚未恢复的历史进度。
+    positionPending=false;
+    if(now()>=sentence.end-0.025)sentenceSeekDeadline=Date.now()+900;
+  }
+  seekKeepingSentence(sentence.start,index);
 }
 
 function toggleSelectedSentencePlayback(){
   if(!playerReady||!subs.length)return;
   const sameLockedSentence=sentenceCaptionLocked&&lockedSentenceIndex===current&&!!subs[current];
-
-  // 在尚未开始播放的短暂定位阶段再次按下，也按“暂停本句”处理。
-  if(sameLockedSentence&&sentenceStartTimer){
-    clearTimeout(sentenceStartTimer);
-    sentenceStartTimer=null;
-    playSentenceMode=true;
-    pause();
-    $("#sentenceStatus").textContent=`⏸ 已暂停第${current+1}句 · 仍锁定本句`;
-    updatePlayCurrentButtonState();
-    return;
-  }
 
   if(sameLockedSentence&&playSentenceMode){
     if(isPlaying()){
@@ -3962,7 +3967,7 @@ function toggleSelectedSentencePlayback(){
       const t=now();
       // 暂停位置仍在本句内时原位续播；异常越界时才回到句首。
       if(t<sentence.start-0.025||t>=sentence.end-0.025){
-        seekKeepingSentence(sentence.start,current);
+        seekToSentenceStart(current);
       }
       suppressAutoUntil=Date.now()+300;
       play();
@@ -4044,7 +4049,8 @@ $("#next").onclick=function(){
 };
 
 $("#playCurrent").onclick=function(){
-  toggleSelectedSentencePlayback();
+  if(isPlaying())playSelectedSentence();
+  else toggleSelectedSentencePlayback();
 };
 
 function adjustPlayerVolume(delta){
@@ -4306,7 +4312,7 @@ function enforceNativeSentenceBoundary(){
   if(!playerReady || !sentenceCaptionLocked || lockedSentenceIndex<0 || !subs[lockedSentenceIndex])return;
   if(currentSourceType==="youtube")return;
   const video=$("#nativePlayer"), cue=subs[lockedSentenceIndex];
-  if(!video || video.paused || video.currentTime<cue.end-0.045)return;
+  if(!video || video.seeking || video.paused || video.currentTime<cue.end-0.025)return;
   if(playSentenceMode){
     // 交由主监控统一计数和重播，先立即停住，防止串到下一句。
     video.pause();
@@ -4370,9 +4376,15 @@ function startMonitor(){
     // 分段播放不依赖字幕；没有导入字幕时也必须按结束点停止。
     if(!subs.length)return;
 
+    // 定位期间读到的时间可能还在上一句的结束点。
+    if(currentSourceType!=="youtube" && $("#nativePlayer").seeking)return;
+
     if(playSentenceMode && lockedSentenceIndex>=0 && subs[lockedSentenceIndex]){
       const sentence=subs[lockedSentenceIndex];
+      if(t<sentence.end-0.025)sentenceSeekDeadline=0;
       if(t>=sentence.end-0.025){
+        if(wallNow<sentenceSeekDeadline)return;
+        sentenceSeekDeadline=0;
         const finishedIndex=lockedSentenceIndex;
         pause();
         seekKeepingSentence(sentence.end,finishedIndex);
