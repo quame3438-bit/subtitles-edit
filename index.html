@@ -140,12 +140,13 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   padding-bottom:22px !important;
 }
 
-/* 时间字幕播放：中央“继续本句”跨两行；AB三个按钮等宽等高 */
-.time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:44px 44px;gap:8px;margin-top:10px}
+/* 时间字幕播放：字幕操作位于快退、播放／暂停和快进上方 */
+.time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:44px;gap:8px;margin-top:10px}
 .time-play-grid button{width:100%;min-width:0;min-height:44px;padding:5px 4px;line-height:1.2}
-#playCurrent{grid-column:2;grid-row:1}#timeCuePause{grid-column:2;grid-row:2}
+#playCurrent{grid-column:2;grid-row:1}#timeCuePause{grid-column:2;grid-row:3}
 #prev{grid-column:1;grid-row:1}#next{grid-column:3;grid-row:1}
-#cueRewind{grid-column:1;grid-row:2}#cueForward{grid-column:3;grid-row:2}
+#splitCueBtn{grid-column:1;grid-row:2}#mergeCurrentNextBtn{grid-column:2 / -1;grid-row:2}
+#cueRewind{grid-column:1;grid-row:3}#cueForward{grid-column:3;grid-row:3}
 .ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
 .ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
 /* 谐音区域与当前字幕显示区域等高 */
@@ -253,9 +254,11 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
   <div class="time-play-grid">
     <button class="secondary needsPlayer" id="prev">上一句</button>
     <button class="secondary needsPlayer" id="playCurrent">播放本句</button>
-    <button class="secondary needsPlayer" id="timeCuePause">播放／暂停</button>
     <button class="secondary needsPlayer" id="next">下一句</button>
+    <button type="button" class="secondary" id="splitCueBtn" aria-keyshortcuts="Q">分割（Q）</button>
+    <button type="button" class="secondary" id="mergeCurrentNextBtn" aria-keyshortcuts="W">与下一句合并（W）</button>
     <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
+    <button class="secondary needsPlayer" id="timeCuePause">播放／暂停</button>
     <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
   </div>
 </div>
@@ -295,10 +298,8 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 
 <div class="card" id="subtitleSplitCard"><b>字幕分割与合并</b>
   <div class="controls" id="splitActionControls">
-    <button type="button" class="secondary" id="splitCueBtn" aria-keyshortcuts="Q">分割（Q）</button>
     <button type="button" class="secondary" id="splitMergeNextBtn">分割并合并到下一句</button>
     <button type="button" class="secondary" id="splitMergePrevBtn">分割与上一句合并</button>
-    <button type="button" class="secondary" id="mergeCurrentNextBtn" aria-keyshortcuts="W">与下一句合并（W）</button>
   </div>
   <div class="small" style="margin-top:7px">先在下方字幕文本中点击要分割的位置，再播放到分割时间点（也可暂停定位）；可反复分割，最后统一点完成。中英文双语行会按相同比例分割。</div>
   <div class="controls">
