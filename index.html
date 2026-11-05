@@ -857,6 +857,7 @@ let sentenceCaptionLocked = false;
 let lockedSentenceIndex = -1;
 let sentenceAutoTimer = null;
 let sentenceSeekDeadline = 0;
+let sentenceReplayClickUntil = 0;
 let sentenceRunPlayCount = 0;
 let monitorTimer = null;
 let abStart=null,abEnd=null,abLoopActive=false;
@@ -3827,6 +3828,7 @@ window.removeSub=function(i){
 };
 
 function cancelSentencePlay(){
+  sentenceReplayClickUntil=0;
   sentenceSeekDeadline=0;
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
   playSentenceMode=false;
@@ -3923,6 +3925,7 @@ $("#insertNewCue").onclick=function(){
 };
 
 function playSelectedSentence(resetRunCount=true){
+  sentenceReplayClickUntil=0;
   if(!playerReady||!subs.length)return;
   if(resetRunCount)sentenceRunPlayCount=0;
   playbackCountMode="sentence";
@@ -3955,6 +3958,7 @@ function seekToSentenceStart(index){
 }
 
 function toggleSelectedSentencePlayback(){
+  sentenceReplayClickUntil=0;
   if(!playerReady||!subs.length)return;
   const sameLockedSentence=sentenceCaptionLocked&&lockedSentenceIndex===current&&!!subs[current];
 
@@ -4049,8 +4053,20 @@ $("#next").onclick=function(){
 };
 
 $("#playCurrent").onclick=function(){
-  if(isPlaying())playSelectedSentence();
-  else toggleSelectedSentencePlayback();
+  if(!playerReady||!subs[current])return;
+  const clickedAt=performance.now();
+  if(clickedAt<sentenceReplayClickUntil){
+    playSelectedSentence();
+    return;
+  }
+  if(isPlaying()){
+    // 第一下立即暂停，短时间内的第二下从句首重播。
+    sentenceReplayClickUntil=clickedAt+350;
+    pause();
+    $("#sentenceStatus").textContent=`⏸ 已暂停第${current+1}句`;
+    return;
+  }
+  toggleSelectedSentencePlayback();
 };
 
 function adjustPlayerVolume(delta){
