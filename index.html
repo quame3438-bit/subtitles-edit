@@ -62,9 +62,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .item.active{outline:2px solid #111}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid textarea{grid-column:1/-1;min-height:82px;resize:vertical;-webkit-user-select:text;user-select:text;touch-action:auto}
-.timebox{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:center}
-.timebox button{padding:10px 0;background:#eee;color:#222;font-size:18px}
-.timeinput{font-variant-numeric:tabular-nums;text-align:center}
 .status{margin-top:8px;font-size:13px;color:#777}
 .segment-times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .segment-time{background:#f7f7f8;border:2px solid transparent;border-radius:12px;padding:10px;text-align:center;cursor:pointer}
@@ -170,7 +167,6 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 
 /* 紧凑播放按钮与独立时间编辑 */
 #timeSubtitlePlayCard .time-play-grid button{min-height:44px!important;height:44px!important;padding:5px 4px!important;background:#eee;color:#222}
-#cueTimeEditCard .grid{margin-top:8px}
 #subtitleEditCard .grid{display:block}
 #subtitleEditCard .grid>.small{margin-bottom:6px}
 #subtitleEditCard .cue-edit-text{display:block;width:100%;height:144px;min-height:144px;max-height:144px;resize:none;overflow:auto;font-size:22px;line-height:1.35;padding:12px 8px}
@@ -299,10 +295,10 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 
 <div class="card" id="subtitleSplitCard"><b>字幕分割与合并</b>
   <div class="controls" id="splitActionControls">
-    <button type="button" class="secondary" id="splitCueBtn">分割</button>
+    <button type="button" class="secondary" id="splitCueBtn" aria-keyshortcuts="Q">分割（Q）</button>
     <button type="button" class="secondary" id="splitMergeNextBtn">分割并合并到下一句</button>
     <button type="button" class="secondary" id="splitMergePrevBtn">分割与上一句合并</button>
-    <button type="button" class="secondary" id="mergeCurrentNextBtn">与下一句合并</button>
+    <button type="button" class="secondary" id="mergeCurrentNextBtn" aria-keyshortcuts="W">与下一句合并（W）</button>
   </div>
   <div class="small" style="margin-top:7px">先在下方字幕文本中点击要分割的位置，再播放到分割时间点（也可暂停定位）；可反复分割，最后统一点完成。中英文双语行会按相同比例分割。</div>
   <div class="controls">
@@ -629,7 +625,6 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
   <div id="pageSearchStatus" class="status">搜索当前导入的全部字幕，结果会全部显示在下面</div>
   <div id="subtitleSearchResults" style="display:grid;gap:8px;margin-top:10px"></div>
 </div>
-<div class="card" id="cueTimeEditCard"><b>编辑字幕 · 开始结束时间</b><div id="cueTimeEditor"></div></div>
 </div>
 
 <div id="backupChooseOverlay" hidden style="position:fixed;inset:0;z-index:20000;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px"><div style="background:white;border-radius:16px;padding:20px;width:min(100%,440px);max-height:85vh;overflow:auto"><h3 style="margin:0 0 12px">选择需要导出的内容</h3><div id="backupChooseList" style="display:grid;gap:12px"></div><div class="controls" style="margin-top:18px"><button type="button" class="secondary" id="backupChooseAll">全选／取消全选</button><button type="button" class="secondary" id="backupChooseCancel">取消</button><button type="button" id="backupChooseConfirm">确认导出</button></div><p class="small">只导出勾选的项目；未勾选的数据不会写入文件。原始本地视频、音频文件不包含在 JSON 中。</p></div></div>
@@ -3710,28 +3705,6 @@ document.getElementById('splitFinishBtn').onclick=()=>{
   splitStatus(`已完成并保存 ${count} 步字幕操作，共 ${subs.length} 句`);
 };
 
-  const selectedCue=subs[current];
-  const timePanel=document.getElementById("cueTimeEditor");
-  if(timePanel){
-    const i=current;
-    timePanel.innerHTML=selectedCue?`<div class="small" style="margin-bottom:8px">第 ${i+1} 句 · 开始与结束时间</div><div class="grid">        <div>
-          <div class="small">开始时间</div>
-          <input class="timeinput" data-time="start" data-i="${i}" value="${fmt(s.start)}">
-          <div class="timebox" style="margin-top:6px">
-            <button onclick="adjust(${i},'start',-1)">－</button>
-            <button onclick="adjust(${i},'start',1)">＋</button>
-          </div>
-        </div>
-        <div>
-          <div class="small">结束时间</div>
-          <input class="timeinput" data-time="end" data-i="${i}" value="${fmt(s.end)}">
-          <div class="timebox" style="margin-top:6px">
-            <button onclick="adjust(${i},'end',-1)">－</button>
-            <button onclick="adjust(${i},'end',1)">＋</button>
-          </div>
-        </div>
-</div>`:'<div class="small">请先导入字幕</div>';
-  }
 function fitCueEditText(el){
   if(!el)return;
   const max=22,min=11;
@@ -3774,14 +3747,6 @@ function renderAll(){
     };
   });
   document.querySelectorAll(".cue-edit-text").forEach(fitCueEditText);
-  $$("[data-time]").forEach(el=>{
-    el.onchange=function(){
-      const i=Number(el.dataset.i), field=el.dataset.time;
-      subs[i][field]=parseTime(el.value);
-      el.value=fmt(subs[i][field]);
-      saveSubtitlesNow();
-    };
-  });
   updateTop();
 }
 
@@ -4263,6 +4228,8 @@ function normalizeShortcutCode(e){
     }
     return e.code;
   }
+  if(e.key?.toLowerCase()==="q")return "KeyQ";
+  if(e.key?.toLowerCase()==="w")return "KeyW";
   const kc=e.keyCode||e.which||0;
   const byKeyCode={
     96:"Numpad0",97:"Numpad1",99:"Numpad3",101:"Numpad5",102:"Numpad6",103:"Numpad7",104:"Numpad8",105:"Numpad9",
@@ -4298,6 +4265,8 @@ function handleHardwareShortcut(e){
 
   const code=normalizeShortcutCode(e);
   const actions={
+    KeyQ:()=>$("#splitCueBtn").click(),
+    KeyW:()=>$("#mergeCurrentNextBtn").click(),
     Numpad0:()=>$("#playSegment").click(),
     ArrowLeft:()=>$("#prevSegment").click(),
     ArrowRight:()=>$("#nextSegment").click(),
