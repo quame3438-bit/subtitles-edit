@@ -180,7 +180,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V4 · 蓝牙本句播放修复</strong></div>
+<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V4 · 本句边界双重保护 V5</strong></div>
 <div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 键盘状态：正在检测。蓝牙连接由 iPad 管理；首次可能需要轻点网页一次。</div>
 
 <div class="card">
@@ -2814,6 +2814,12 @@ function syncSegmentCaptionToVideoTime(time,force){
 
 function syncCaptionsAfterUserSeek(time){
   const t=Math.max(0,Number(time)||0);
+  // 程序定位和结束点回定位不是用户拖动；不得清除本句锁定。
+  if(Date.now()<=programmaticSeekUntil)return;
+  if(sentenceCaptionLocked && lockedSentenceIndex>=0 && subs[lockedSentenceIndex]){
+    const cue=subs[lockedSentenceIndex];
+    if(t>=cue.start-0.12 && t<=cue.end+0.12)return;
+  }
 
   // 用户手动拖动进度条时，以新的播放位置为准：
   // 取消“播放本句 / 播放本段”的自动锁定，让两套字幕都立即跟随进度。
@@ -3953,15 +3959,15 @@ function playSelectedSentence(resetRunCount=true){
   playSentenceMode=false;
   sentenceCaptionLocked=true;
   lockedSentenceIndex=current;
-  suppressAutoUntil=Date.now()+500;
+  suppressAutoUntil=Date.now()+1200;
   pause();
   seekKeepingSentence(subs[lockedSentenceIndex].start,lockedSentenceIndex);
   $("#sentenceStatus").textContent=$("#sentenceAutoMode").value==="continuous"
     ? `▶️ 正在连续播放第${lockedSentenceIndex+1}句`
     : `🔒 已锁定第${lockedSentenceIndex+1}句 · 播放本句不会自动换句`;
+  playSentenceMode=true; // 定位阶段即启用边界保护，避免蓝牙/原生播放器抢先播放
   sentenceStartTimer=setTimeout(function(){
     sentenceStartTimer=null;
-    playSentenceMode=true;
     play();
     setTimeout(updatePlayCurrentButtonState,60);
   },250);
@@ -4326,6 +4332,21 @@ function handleHardwareShortcut(e){
 document.addEventListener("keydown",handleHardwareShortcut,true);
 
 
+// 原生播放器 timeupdate 作为第二道边界保护；后台/蓝牙播放时也有效。
+function enforceNativeSentenceBoundary(){
+  if(!playerReady || !sentenceCaptionLocked || lockedSentenceIndex<0 || !subs[lockedSentenceIndex])return;
+  if(currentSourceType==="youtube")return;
+  const video=$("#nativePlayer"), cue=subs[lockedSentenceIndex];
+  if(!video || video.paused || video.currentTime<cue.end-0.045)return;
+  if(playSentenceMode){
+    // 交由主监控统一计数和重播，先立即停住，防止串到下一句。
+    video.pause();
+    return;
+  }
+  video.pause();
+  seekKeepingSentence(cue.end,lockedSentenceIndex);
+}
+$("#nativePlayer").addEventListener("timeupdate",enforceNativeSentenceBoundary);
 function startMonitor(){
   if(monitorTimer)clearInterval(monitorTimer);
   lastMonitoredTime=now();
