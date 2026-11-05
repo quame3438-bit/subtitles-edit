@@ -46,7 +46,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .small{font-size:13px;color:#777}
 .subtitle{font-size:22px;font-weight:600;text-align:center;min-height:58px;padding:12px 8px;white-space:pre-wrap}
 .subtitle{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;touch-action:auto}
-.subtitle-wrap{position:relative;height:144px;min-height:144px;overflow:hidden}
+.subtitle-wrap{position:relative;height:72px;min-height:72px;overflow:hidden}
 #currentSubtitle{height:100%;min-height:0;line-height:1.35;overflow:auto;overflow-wrap:anywhere;scrollbar-gutter:stable}
 #subtitleCopyStatus{min-height:18px}
 .subtitle-strip{
@@ -4129,8 +4129,66 @@ function focusKeyboardBridge(){
     const ok=document.activeElement===keyboardBridge;
     keyboardBridgeBadge.textContent=ok?"⌨️ 小键盘：已就绪":"⌨️ 小键盘：点此激活";
     const status=document.getElementById("keyboardHelpStatus");
-    if(status)status.textContent=ok?"⌨️ 快捷键已就绪：可按 0 测试。编辑文字时自动暂停，离开输入框后恢复。":"⌨️ 网页已加载快捷键，但 Safari 尚未给予键盘焦点。请轻点右下角「小键盘：点此激活」，或轻点网页空白处。";
+    if(status)status.textContent=ok?"⌨️ 快捷键已就绪：可按 0 测试。编辑文字时自动暂停，离开输入框后恢复。":"⌨️ 网页已加载快捷键，但 Safari 尚未给予键盘焦点。请轻点浮动的「小键盘：点此激活」，或轻点网页空白处。";
   },0);
+}
+
+function enableKeyboardBadgeDrag(badge){
+  const positionKey="ytKeyboardBadgePosition:v1";
+  let position=null;
+  let drag=null;
+  let suppressPointerClick=false;
+
+  function place(left,top){
+    const maxLeft=Math.max(0,window.innerWidth-badge.offsetWidth);
+    const maxTop=Math.max(0,window.innerHeight-badge.offsetHeight);
+    position={
+      left:Math.max(0,Math.min(left,maxLeft)),
+      top:Math.max(0,Math.min(top,maxTop))
+    };
+    badge.style.left=position.left+"px";
+    badge.style.top=position.top+"px";
+    badge.style.right="auto";
+    badge.style.bottom="auto";
+  }
+
+  try{
+    const saved=JSON.parse(localStorage.getItem(positionKey));
+    if(saved&&Number.isFinite(saved.left)&&Number.isFinite(saved.top))place(saved.left,saved.top);
+  }catch(e){}
+
+  badge.addEventListener("pointerdown",e=>{
+    if(e.button!==0||drag)return;
+    const rect=badge.getBoundingClientRect();
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:rect.left,top:rect.top};
+    suppressPointerClick=false;
+    badge.setPointerCapture(e.pointerId);
+  });
+  badge.addEventListener("pointermove",e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(!suppressPointerClick&&Math.hypot(dx,dy)<8)return;
+    suppressPointerClick=true;
+    place(drag.left+dx,drag.top+dy);
+  });
+  badge.addEventListener("pointerup",e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    drag=null;
+    if(suppressPointerClick){
+      try{localStorage.setItem(positionKey,JSON.stringify(position));}catch(e){}
+    }
+  });
+  badge.addEventListener("lostpointercapture",e=>{
+    if(drag?.id===e.pointerId)drag=null;
+  });
+  badge.addEventListener("click",e=>{
+    if(!suppressPointerClick||e.detail===0)return;
+    suppressPointerClick=false;
+    e.stopImmediatePropagation();
+  });
+  window.addEventListener("resize",()=>{
+    if(position)place(position.left,position.top);
+  });
 }
 
 if(isAppleTouchDevice){
@@ -4167,9 +4225,12 @@ if(isAppleTouchDevice){
   keyboardBridgeBadge=document.createElement("button");
   keyboardBridgeBadge.type="button";
   keyboardBridgeBadge.textContent="⌨️ 小键盘：待激活";
-  keyboardBridgeBadge.title="如果小键盘没反应，点这里重新激活";
+  keyboardBridgeBadge.title="轻点激活小键盘，按住拖动可调整位置";
   keyboardBridgeBadge.style.cssText=[
     "position:fixed",
+    "touch-action:none",
+    "user-select:none",
+    "cursor:grab",
     "right:12px",
     "bottom:calc(12px + env(safe-area-inset-bottom))",
     "z-index:99999",
@@ -4191,6 +4252,7 @@ if(isAppleTouchDevice){
     "box-shadow:0 3px 12px rgba(0,0,0,.20)"
   ].join(";");
   document.body.appendChild(keyboardBridgeBadge);
+  enableKeyboardBadgeDrag(keyboardBridgeBadge);
 
   keyboardBridgeEnabled=true;
 
