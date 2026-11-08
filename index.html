@@ -2331,9 +2331,35 @@ function ensureNativePlayer(){
     lastMonitorWallTime=Date.now();
     if(Date.now()>programmaticSeekUntil)syncCaptionsAfterUserSeek(t);
   });
-  video.addEventListener("stalled",()=>{
-    if(currentSourceType==="local")$("#videoStatus").textContent="视频加载停滞。请尝试点击原生播放键；若仍黑屏，请检查视频编码是否受 Safari 支持。";
-  });
+  // 仅在用户原本正在播放、且没有主动暂停/句末停止时，尝试恢复缓冲停滞。
+  let bufferWatchTimer=null, bufferWatchAt=0, bufferWatchTime=0, bufferWatchAttempts=0;
+  const stopBufferWatch=()=>{if(bufferWatchTimer){clearTimeout(bufferWatchTimer);bufferWatchTimer=null;}};
+  const checkBufferRecovery=()=>{
+    bufferWatchTimer=null;
+    if(!["local","audio","direct"].includes(currentSourceType)||video.paused||video.ended||video.seeking||!playerReady)return;
+    if(playSentenceMode && lockedSentenceIndex>=0 && subs[lockedSentenceIndex] && video.currentTime>=subs[lockedSentenceIndex].end-0.1)return;
+    const progressed=video.currentTime-bufferWatchTime;
+    if(progressed>0.15){bufferWatchAttempts=0;return;}
+    if(Date.now()-bufferWatchAt<1800){bufferWatchTimer=setTimeout(checkBufferRecovery,1000);return;}
+    if(bufferWatchAttempts>=2){$("#videoStatus").textContent="视频持续卡顿：可能是文件编码、设备解码或存储读取问题。请尝试重新选择视频，或转为 H.264/AAC MP4。";return;}
+    bufferWatchAttempts++;
+    // 不跳动播放位置，不重载文件，不改变字幕/AB 状态。
+    try{video.play().catch(()=>{});}catch(e){}
+    $("#videoStatus").textContent="检测到缓冲停滞，正在尝试恢复播放（"+bufferWatchAttempts+"/2）…";
+    bufferWatchAt=Date.now();bufferWatchTime=video.currentTime;
+    bufferWatchTimer=setTimeout(checkBufferRecovery,2200);
+  };
+  const watchBuffer=()=>{
+    if(video.paused||video.ended||video.seeking)return;
+    stopBufferWatch();bufferWatchAt=Date.now();bufferWatchTime=video.currentTime;bufferWatchAttempts=0;
+    bufferWatchTimer=setTimeout(checkBufferRecovery,2200);
+  };
+  video.addEventListener("waiting",watchBuffer);
+  video.addEventListener("stalled",watchBuffer);
+  video.addEventListener("playing",()=>{stopBufferWatch();bufferWatchAttempts=0;});
+  video.addEventListener("pause",stopBufferWatch);
+  video.addEventListener("seeking",stopBufferWatch);
+  video.addEventListener("emptied",stopBufferWatch);
   video.addEventListener("error",()=>{
     if(currentSourceType!=="direct"&&currentSourceType!=="local"&&currentSourceType!=="audio")return;
     playerReady=false;setPlayerEnabled(false);$("#videoStatus").textContent="视频无法解码或加载（错误码 "+(video.error?.code||"未知")+"）。请确认视频编码为 H.264/AAC MP4，或换 Safari 打开。";
@@ -2355,7 +2381,6 @@ function loadNativeVideo(src,key,name,type){
   player=ensureNativePlayer();playerReady=false;setPlayerEnabled(false);
   video.pause();
   video.removeAttribute("src");
-  video.load();
   video.controls=true;
   video.autoplay=false;
   video.preload="metadata";
@@ -4488,7 +4513,7 @@ function startMonitor(){
     }
     if(Date.now()<suppressAutoUntil)return;
     if(!sentenceCaptionLocked)syncSubtitleToVideoTime(t);
-  },100);
+  },200);
 }
 
 const TTS_ENDPOINT="https://braarnzywbodyfdclodc.supabase.co/functions/v1/tts";
