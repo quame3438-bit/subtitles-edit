@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Chrome小键盘防遮挡版 - YouTube 字幕编辑器</title>
+<title>字幕编辑器 - 停用自定义分段版</title>
 <style>
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -314,7 +314,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 
 
 
-<div class="card">
+<div class="card" id="disabledSegmentCard" hidden aria-hidden="true">
   <b>自定义视频分段</b>
   <div class="controls">
     <button class="secondary needsPlayer" id="prevSegment">上一段</button>
@@ -955,7 +955,7 @@ function recoverPlayerControls(){
     playerReady=true;
     setPlayerEnabled(true);
     updatePlayCurrentButtonState();
-    installRemoteSegmentControls();
+    // 自定义分段已停用：不接管系统媒体快捷键。
   }
   return usable;
 }
@@ -2121,11 +2121,11 @@ function ensureNativePlayer(){
     if(currentSourceType==="direct")setTimeout(()=>autoSaveCurrentVideo(true),100);
   });
   video.addEventListener("play",()=>{
-    installRemoteSegmentControls();
+    // 自定义分段已停用：不接管系统媒体快捷键。
     $("#togglePlay").textContent="⏸ 暂停";
     updatePlayCurrentButtonState();
     startMonitor();
-    if(!segmentPlayMode&&!segmentCaptionLocked)syncSegmentCaptionToVideoTime(Number(video.currentTime)||0,false);
+    // 自定义分段同步已停用。
   });
   video.addEventListener("pause",()=>{
     savePlaybackPosition(true);
@@ -2234,9 +2234,9 @@ function createOrLoadVideo(id){
           e.data===YT.PlayerState.PLAYING ? "⏸ 暂停" : "▶️ 播放";
         updatePlayCurrentButtonState();
         if(e.data===YT.PlayerState.PLAYING){
-          installRemoteSegmentControls();
+          // 自定义分段已停用：不接管系统媒体快捷键。
           startMonitor();
-          if(!segmentPlayMode&&!segmentCaptionLocked)syncSegmentCaptionToVideoTime(now(),false);
+          // 自定义分段同步已停用。
         }
         if(e.data===YT.PlayerState.PLAYING || e.data===YT.PlayerState.CUED){
           setTimeout(()=>autoSaveCurrentVideo(true),300);
@@ -3001,8 +3001,7 @@ function updateRemotePlaybackState(){
     if(navigator.mediaSession.playbackState!==state)navigator.mediaSession.playbackState=state;
   }catch(e){}
 }
-installRemoteSegmentControls();
-document.addEventListener("visibilitychange",()=>{if(!document.hidden){recoverPlayerControls();installRemoteSegmentControls();}});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)recoverPlayerControls();});
 
 function deleteVideoSegment(i){
   if(segmentCaptionEditIndex>=0)commitSegmentCaptionEdit();
@@ -3980,7 +3979,7 @@ function startMonitor(){
     lastMonitorWallTime=wallNow;
 
     // “播放本段”期间锁定当前段落字幕，到结束点先停止，不能提前跳到下一段。
-    if(segmentPlayMode && playingSegmentIndex>=0 && videoSegments[playingSegmentIndex]){
+    if(false && segmentPlayMode && playingSegmentIndex>=0 && videoSegments[playingSegmentIndex]){
       const seg=videoSegments[playingSegmentIndex];
       if(t>=seg.end-0.025){
         const finishedIndex=playingSegmentIndex;
@@ -4001,7 +4000,7 @@ function startMonitor(){
     }
 
     // 只有普通播放时才跟随；“播放本段”结束后仍锁定当前段，直到手动切换或拖动。
-    if(!segmentCaptionLocked)syncSegmentCaptionToVideoTime(t,false);
+    // 自定义分段字幕同步已停用。
 
     // YouTube 没有独立的 seeked 事件：时间变化明显超过正常播放量时，视为拖动进度条。
     if(currentSourceType==="youtube" && wallNow>programmaticSeekUntil && previousTime!==null){
