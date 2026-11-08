@@ -23,8 +23,8 @@
 .card.module-collapsed .module-move-bar{margin-bottom:0}
 .card.module-collapsed .collapse-arrow{transform:rotate(-90deg)}
 </style></head><body><main class="wrap">
-<h1>视频字幕播放器 <small style="font-size:12px;color:#777">Safari 精简编辑版 · 字幕读取修复</small></h1>
-<div class="hint">只保留本地视频、SRT 字幕、本句播放、分割合并、编辑和小键盘。模块标题点一下可收起／展开，不用的模块可以隐藏内容；↑ ↓ 调整位置并自动记忆。</div>
+<h1>视频字幕播放器 <small style="font-size:12px;color:#777">Safari 精简编辑版 · 字幕进度同步</small></h1>
+<div class="hint">只保留本地视频、SRT 字幕、本句播放、分割合并、编辑和小键盘。字幕自动跟随视频播放进度；快速连按快退／快进仍合并为一次跳转。其他模块可收起并上下移动。</div>
 <section class="card"><div class="row"><label class="filebtn primary">① 选择本地视频<input id="videoFile" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mp3,.m4a,audio/*"></label><label class="filebtn">② 导入 SRT / VTT<input id="subFile" type="file" accept="*/*"></label></div><p class="hint" id="fileInfo">本地视频需每次重新选择；字幕不会自动与错误的视频绑定。</p><video id="video" controls playsinline webkit-playsinline preload="metadata"></video><div id="status" role="status">请选择本地视频。</div></section>
 <section class="card"><div id="cueText">导入字幕后显示在这里</div><div id="cueMeta">0 / 0</div><div id="subtitleStatus" class="hint" role="status" aria-live="polite" style="text-align:center;margin-top:5px">请选择 SRT / VTT 字幕文件</div></section>
 <section class="card"><div class="play-controls"><button id="prev">上一句 7</button><button class="primary" id="playCue">播放本句 8</button><button id="next">下一句 9</button><button id="back">⏪ 快退 1</button><button id="toggle">播放／暂停</button><button id="ahead">快进 3 ⏩</button><button id="split" title="先在字幕编辑中把光标放在分割位置">分割（Q）</button><button id="merge">与下一句合并（W）</button></div></section>
@@ -51,6 +51,7 @@ function speedApply(){v.playbackRate=Number($('speed').value)||1;safeSet(SPEED,$
 for(const id of ['rewindStep','forwardStep','speed'])$(id).addEventListener('change',()=>{prefs[id]=$(id).value;safeSet(PREF,JSON.stringify(prefs));if(id==='speed')speedApply()});
 for(const [id,key] of [['mode',MODE],['times',TIMES],['interval',INTERVAL]])$(id).addEventListener('change',()=>{safeSet(key,$(id).value);stopSentence()});
 let cues=[],idx=0,objectUrl='',hasVideo=false,seekTimer=0,seekTarget=null,seekAutoplay=false,seekToken=0,activeSentence=false,played=0,intervalTimer=0;
+let seekInFlight=false,seekActiveTarget=null,seekWatchdog=0,seekLastPress=0,pendingAutoPlay=false,seekGeneration=0;
 function status(s){$('status').textContent=s}
 function fmt(t){t=Math.max(0,Number(t)||0);const ms=Math.round(t*1000),h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`}
 function parseTime(s){const a=String(s).trim().replace(',','.').split(':');if(a.length<2||a.length>3)return NaN;const nums=a.map(Number);if(nums.some(n=>!Number.isFinite(n)))return NaN;return a.length===3?nums[0]*3600+nums[1]*60+nums[2]:nums[0]*60+nums[1]}
@@ -98,23 +99,144 @@ function readSubtitleFile(file){
   });
 }
 function refreshCue(){if(!cues.length){$('cueText').textContent='请导入字幕';$('cueMeta').textContent='0 / 0';$('startEdit').value=$('endEdit').value=$('textEdit').value='';return}idx=Math.max(0,Math.min(cues.length-1,idx));const c=cues[idx];$('cueText').textContent=c.text||'(空字幕)';$('cueMeta').textContent=`${idx+1} / ${cues.length} · ${fmt(c.start)} → ${fmt(c.end)}`;$('startEdit').value=fmt(c.start);$('endEdit').value=fmt(c.end);$('textEdit').value=c.text}
+// 按视频真实播放时间选择字幕。只更新字幕显示，不触碰视频 currentTime/play/pause。
+// 用二分查找处理长字幕文件；字幕间隙保持上一条，下一条开始时立即切换。
+function cueAtTime(t){
+  if(!cues.length)return -1;
+  let low=0,high=cues.length-1,found=0;
+  while(low<=high){
+    const mid=(low+high)>>1;
+    if(cues[mid].start<=t+.015){found=mid;low=mid+1}else high=mid-1;
+  }
+  return found;
+}
+function syncCueToVideo(){
+  if(!hasVideo||!cues.length||!Number.isFinite(v.currentTime))return;
+  // 点击上一句/下一句后，等待延迟跳转时不要把刚选中的字幕又切回旧位置。
+  // 本句重复播放由 sentenceEnded 控制，不让自动字幕同步抢走当前句。
+  if(activeSentence||seekTarget!==null||seekInFlight||v.seeking)return;
+  const found=cueAtTime(v.currentTime);
+  if(found!==idx){idx=found;refreshCue()}
+}
 function stopSentence(){activeSentence=false;played=0;clearTimeout(intervalTimer)}
-function playSafe(){if(!hasVideo)return status('请先选择视频');pendingAutoPlay=false;speedApply();const promise=v.play();if(promise&&promise.catch)promise.catch(e=>status('播放被 Safari 阻止：'+(e?.message||'请点视频自带播放键')))}
-// Safari：快速按键时只更新字幕，最后一次按键后再进行一次视频跳转。
-function queueSeek(t,auto=true,delay=380){if(!hasVideo)return;seekTarget=Math.max(0,Number(t)||0);seekAutoplay=auto;clearTimeout(seekTimer);const token=++seekToken;seekTimer=setTimeout(()=>{if(token!==seekToken)return;performSeek()},delay)}
-function performSeek(){if(!hasVideo||seekTarget===null)return;if(v.seeking){return}const t=seekTarget,auto=seekAutoplay;seekTarget=null;seekAutoplay=false;try{if(Math.abs(v.currentTime-t)>.06){v.currentTime=t}else if(auto&&v.paused){playSafe()}if(auto&&!v.seeking&&v.paused)playSafe()}catch(e){status('跳转失败：'+(e?.message||'Safari 视频解码异常'))}}
-v.addEventListener('seeked',()=>{if(seekTarget!==null){clearTimeout(seekTimer);seekTimer=setTimeout(performSeek,100);return}if(hasVideo&&v.paused&&(activeSentence||pendingAutoPlay)){pendingAutoPlay=false;playSafe()}});
-let pendingAutoPlay=false;
-function goCue(n,auto=true){if(!cues.length)return status('请先导入字幕');stopSentence();idx=Math.max(0,Math.min(cues.length-1,n));refreshCue();if(auto&&hasVideo){activeSentence=true;pendingAutoPlay=true;if(v.paused)playSafe();queueSeek(cues[idx].start,true,400)}}
-function playCue(){if(!cues.length)return status('请先导入字幕');if(!hasVideo)return status('请先选择视频');if(activeSentence&&!v.paused){v.pause();stopSentence();return}stopSentence();activeSentence=true;pendingAutoPlay=true;if(v.paused)playSafe();queueSeek(cues[idx].start,true,50)}
-function doSeek(delta){if(!hasVideo)return status('请先选择视频');stopSentence();pendingAutoPlay=true;if(v.paused)playSafe();const base=seekTarget!==null?seekTarget:v.currentTime;queueSeek(base+delta,true,380)}
-function toggle(){if(!hasVideo)return status('请先选择视频');if(!v.paused){v.pause();stopSentence()}else playSafe()}
-$('videoFile').addEventListener('change',e=>{const file=e.target.files?.[0];if(!file)return;clearTimeout(seekTimer);stopSentence();pendingAutoPlay=false;seekTarget=null;hasVideo=false;v.pause();const oldUrl=objectUrl;objectUrl=URL.createObjectURL(file);v.src=objectUrl;v.load();if(oldUrl)URL.revokeObjectURL(oldUrl);hasVideo=true;speedApply();$('fileInfo').textContent=`视频：${file.name}（${(file.size/1048576).toFixed(1)} MB）`;status('视频已加载，请点播放。连续快速按键时，停止按键后约 0.4 秒才定位。');e.target.value=''});
-$('subFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;const subStatus=$('subtitleStatus');subStatus.textContent='正在读取：'+f.name;try{const raw=await readSubtitleFile(f);const parsed=parseSrt(raw);if(!parsed.length)throw Error('未找到有效时间轴，请检查是否为 SRT / VTT 文件');cues=parsed;idx=0;stopSentence();refreshCue();const msg=`成功读取 ${cues.length} 条字幕：${f.name}`;subStatus.textContent=msg;status(msg)}catch(err){const msg='字幕读取失败：'+(err?.message||'未知错误');subStatus.textContent=msg;status(msg)}finally{e.target.value=''}});
+function playSafe(){
+  if(!hasVideo)return status('请先选择视频');
+  speedApply();
+  // 避免 Safari 在一次 seek 尚未结束时收到多次 play()。
+  if(!v.paused)return;
+  try{const promise=v.play();if(promise&&promise.catch)promise.catch(e=>status('播放未启动：'+(e?.message||'请点视频自带播放键')))}
+  catch(e){status('播放未启动：'+(e?.message||'请点视频自带播放键'))}
+}
+function cancelQueuedSeek(){
+  ++seekGeneration;++seekToken;
+  clearTimeout(seekTimer);clearTimeout(seekWatchdog);
+  seekTarget=null;seekAutoplay=false;seekInFlight=false;seekActiveTarget=null;pendingAutoPlay=false;
+}
+// Safari 专用：连续快退/快进仅累计目标时间，最后一次按键后只做一次 currentTime 跳转。
+// 任何时刻最多有一次未完成的 seek，不在 seek 过程中重复 play()/pause()/load()。
+function queueSeek(t,auto=true,delay=550){
+  if(!hasVideo)return;
+  const max=Number.isFinite(v.duration)&&v.duration>0?Math.max(0,v.duration-.05):Infinity;
+  seekTarget=Math.max(0,Math.min(max,Number(t)||0));
+  seekAutoplay=!!auto;
+  pendingAutoPlay=!!auto;
+  seekLastPress=Date.now();
+  const token=++seekToken;
+  clearTimeout(seekTimer);
+  seekTimer=setTimeout(()=>{if(token===seekToken)performSeek()},delay);
+}
+function afterSeek(){
+  clearTimeout(seekWatchdog);
+  seekInFlight=false;seekActiveTarget=null;
+  if(seekTarget!==null){
+    // 新按键到来时，等最后一次按键静止 550ms 后再发起下一次跳转。
+    clearTimeout(seekTimer);
+    const token=seekToken;
+    seekTimer=setTimeout(()=>{if(token===seekToken)performSeek()},Math.max(0,550-(Date.now()-seekLastPress)));
+    return;
+  }
+  if(pendingAutoPlay){pendingAutoPlay=false;playSafe()}
+}
+function performSeek(){
+  if(!hasVideo||seekTarget===null)return;
+  if(seekInFlight||v.seeking){
+    // 等当前跳转完成，不能强行叠加另一次 currentTime。
+    clearTimeout(seekTimer);
+    const token=seekToken;
+    seekTimer=setTimeout(()=>{if(token===seekToken)performSeek()},250);
+    return;
+  }
+  if(v.readyState===0){
+    clearTimeout(seekTimer);
+    const token=seekToken;
+    seekTimer=setTimeout(()=>{if(token===seekToken)performSeek()},250);
+    return;
+  }
+  const t=seekTarget;
+  seekTarget=null;
+  seekActiveTarget=t;
+  if(Math.abs(v.currentTime-t)<=.08){afterSeek();return}
+  seekInFlight=true;
+  const generation=seekGeneration;
+  try{
+    v.currentTime=t; // 唯一一次真实跳转
+    clearTimeout(seekWatchdog);
+    seekWatchdog=setTimeout(()=>{
+      if(generation!==seekGeneration||!seekInFlight)return;
+      // 不自动重建视频，也不继续发送跳转命令，避免 Safari 解码器彻底卡死。
+      clearTimeout(seekTimer);seekTarget=null;seekInFlight=false;pendingAutoPlay=false;
+      status('视频定位超过 5 秒未完成。请先等待，仍不动可重新选择视频；若频繁发生，可能与视频编码/关键帧有关。');
+    },5000);
+  }catch(e){seekInFlight=false;clearTimeout(seekWatchdog);status('跳转失败：'+(e?.message||'Safari 视频定位异常'))}
+}
+v.addEventListener('seeking',()=>{
+  // 用户拖动 Safari 原生进度条时，结束本句循环，允许字幕按新进度显示。
+  if(!seekInFlight&&seekTarget===null&&activeSentence)stopSentence();
+});
+v.addEventListener('seeked',()=>{
+  if(seekInFlight||seekTarget!==null)afterSeek();
+  syncCueToVideo();
+});
+v.addEventListener('loadedmetadata',()=>{speedApply();status('视频准备就绪（'+fmt(v.duration||0)+'）');if(seekTarget!==null)performSeek();else syncCueToVideo()});
+function goCue(n,auto=true){
+  if(!cues.length)return status('请先导入字幕');
+  stopSentence();idx=Math.max(0,Math.min(cues.length-1,n));refreshCue();
+  if(auto&&hasVideo){activeSentence=true;queueSeek(cues[idx].start,true,550)}
+}
+function playCue(){
+  if(!cues.length)return status('请先导入字幕');
+  if(!hasVideo)return status('请先选择视频');
+  if(activeSentence&&!v.paused){cancelQueuedSeek();v.pause();stopSentence();return}
+  stopSentence();activeSentence=true;queueSeek(cues[idx].start,true,100);
+}
+function doSeek(delta){
+  if(!hasVideo)return status('请先选择视频');
+  stopSentence();
+  // 连按时从尚未执行的目标时间累计，不依赖尚未更新的 currentTime。
+  const base=seekTarget!==null?seekTarget:(seekInFlight&&seekActiveTarget!==null?seekActiveTarget:v.currentTime);
+  queueSeek(base+delta,true,550);
+}
+function toggle(){
+  if(!hasVideo)return status('请先选择视频');
+  if(!v.paused){cancelQueuedSeek();v.pause();stopSentence()}
+  else if(seekTarget!==null||seekInFlight){pendingAutoPlay=true}
+  else playSafe();
+}
+$('videoFile').addEventListener('change',e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  cancelQueuedSeek();stopSentence();hasVideo=false;v.pause();
+  const oldUrl=objectUrl;objectUrl=URL.createObjectURL(file);
+  v.src=objectUrl;v.load();
+  if(oldUrl)setTimeout(()=>URL.revokeObjectURL(oldUrl),5000);
+  hasVideo=true;speedApply();
+  $('fileInfo').textContent=`视频：${file.name}（${(file.size/1048576).toFixed(1)} MB）`;
+  status('视频已加载。快速连按快退／快进，停止按键约 0.55 秒后才执行一次定位。');
+  e.target.value='';
+});
+$('subFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;const subStatus=$('subtitleStatus');subStatus.textContent='正在读取：'+f.name;try{const raw=await readSubtitleFile(f);const parsed=parseSrt(raw);if(!parsed.length)throw Error('未找到有效时间轴，请检查是否为 SRT / VTT 文件');cues=parsed;idx=0;stopSentence();refreshCue();syncCueToVideo();const msg=`成功读取 ${cues.length} 条字幕：${f.name}`;subStatus.textContent=msg;status(msg)}catch(err){const msg='字幕读取失败：'+(err?.message||'未知错误');subStatus.textContent=msg;status(msg)}finally{e.target.value=''}});
 $('prev').onclick=()=>goCue(idx-1);$('next').onclick=()=>goCue(idx+1);$('playCue').onclick=playCue;$('back').onclick=()=>doSeek(-(Number($('rewindStep').value)||5));$('ahead').onclick=()=>doSeek(Number($('forwardStep').value)||5);$('toggle').onclick=toggle;
-function sentenceEnded(){if(!activeSentence||!cues.length||seekTarget!==null||v.seeking)return;const c=cues[idx];if(v.currentTime<c.end-.035)return;v.pause();played++;const times=$('times').value,limit=times==='infinite'?Infinity:Math.max(1,Number(times)||1);if(played<limit){intervalTimer=setTimeout(()=>{if(activeSentence){pendingAutoPlay=true;queueSeek(c.start,true,40)}},Number($('interval').value)*1000);return}if($('mode').value==='continuous'&&idx<cues.length-1){intervalTimer=setTimeout(()=>{if(activeSentence){idx++;played=0;refreshCue();pendingAutoPlay=true;queueSeek(cues[idx].start,true,40)}},Number($('interval').value)*1000)}else{stopSentence()}}
-v.addEventListener('timeupdate',()=>{sentenceEnded()});
-v.addEventListener('loadedmetadata',()=>{speedApply();status('视频准备就绪（'+fmt(v.duration||0)+'）')});
+function sentenceEnded(){if(!activeSentence||!cues.length||seekTarget!==null||seekInFlight||v.seeking)return;const c=cues[idx];if(v.currentTime<c.end-.035)return;v.pause();played++;const times=$('times').value,limit=times==='infinite'?Infinity:Math.max(1,Number(times)||1);if(played<limit){intervalTimer=setTimeout(()=>{if(activeSentence){pendingAutoPlay=true;queueSeek(c.start,true,40)}},Number($('interval').value)*1000);return}if($('mode').value==='continuous'&&idx<cues.length-1){intervalTimer=setTimeout(()=>{if(activeSentence){idx++;played=0;refreshCue();pendingAutoPlay=true;queueSeek(cues[idx].start,true,40)}},Number($('interval').value)*1000)}else{stopSentence()}}
+v.addEventListener('timeupdate',()=>{sentenceEnded();syncCueToVideo()});
 v.addEventListener('playing',()=>{if(hasVideo)status('正在播放')});
 v.addEventListener('waiting',()=>status('Safari 正在等待视频解码或缓冲；如果一直黑屏，请重新选择视频或检查编码。'));
 v.addEventListener('error',()=>{const code=v.error?.code;status('视频加载失败（错误 '+(code||'?')+'）。请确认视频是 iPhone 支持的 H.264/AAC MP4 或 MOV。')});
@@ -137,6 +259,8 @@ $('keyboardActivate').onclick=()=>{try{$('keyboardActivate').focus({preventScrol
  const key='liteSafariModuleOrder:v1';
  const collapseKey='liteSafariModuleCollapsed:v1';
  let collapsed={};try{collapsed=JSON.parse(localStorage.getItem(collapseKey)||'{}')||{}}catch(e){}
+ // Safari 隐藏 video 元素可能中止解码，因此视频模块始终保持展开。
+ collapsed[0]=false;
  let order=[];
  try{const saved=JSON.parse(localStorage.getItem(key)||'[]');if(Array.isArray(saved))order=saved.filter(n=>Number.isInteger(n)&&n>=0&&n<cards.length)}catch(e){}
  for(let i=0;i<cards.length;i++)if(!order.includes(i))order.push(i);
@@ -148,10 +272,10 @@ $('keyboardActivate').onclick=()=>{try{$('keyboardActivate').focus({preventScrol
   const bar=document.createElement('div');bar.className='module-move-bar';
   const title=document.createElement('button');title.type='button';title.className='module-collapse';
   const arrow=document.createElement('span');arrow.className='collapse-arrow';arrow.textContent='▼';
-  const label=document.createElement('span');label.className='collapse-name';label.textContent=names[i]||'模块';
+  const label=document.createElement('span');label.className='collapse-name';label.textContent=(names[i]||'模块')+(i===0?'（保持展开）':'');
   title.append(arrow,label);title.title='点击收起或展开此模块';
   function applyCollapse(){const closed=!!collapsed[i];card.classList.toggle('module-collapsed',closed);title.setAttribute('aria-expanded',String(!closed));title.setAttribute('aria-label',(names[i]||'模块')+(closed?'，点击展开':'，点击收起'))}
-  title.onclick=()=>{collapsed[i]=!collapsed[i];applyCollapse();try{localStorage.setItem(collapseKey,JSON.stringify(collapsed))}catch(e){}};
+  title.onclick=()=>{if(i===0){status('为避免 iPhone Safari 隐藏视频后黑屏，视频模块保持展开。');return}collapsed[i]=!collapsed[i];applyCollapse();try{localStorage.setItem(collapseKey,JSON.stringify(collapsed))}catch(e){}};
   applyCollapse();
   const up=document.createElement('button');up.type='button';up.className='move-up';up.textContent='↑';up.title='上移模块';up.setAttribute('aria-label',(names[i]||'模块')+'上移');
   const down=document.createElement('button');down.type='button';down.className='move-down';down.textContent='↓';down.title='下移模块';down.setAttribute('aria-label',(names[i]||'模块')+'下移');
