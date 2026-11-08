@@ -177,7 +177,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理 · <strong style="color:#087a45">⌨️ 自动键盘版 V4 · 本句边界双重保护 V5</strong></div>
+<div class="version">本机版 · Safari 防卡顿与设置记忆 · <strong style="color:#087a45">⌨️ Safari 快速定位优化 V7 · 参数自动记忆</strong></div>
 <div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 键盘状态：正在检测。蓝牙连接由 iPad 管理；首次可能需要轻点网页一次。</div>
 
 <div class="card">
@@ -234,6 +234,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
+  <div class="controls"><button type="button" class="secondary" id="nativeRecoverBtn" style="display:none">🔄 强制恢复视频</button></div>
 </div>
 <div class="card" id="phoneticCard">
   <b>谐音输入框</b>
@@ -348,6 +349,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
       <input class="play-count-value" id="segmentPlayCount" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="播放次数">
     </div>
   </div>
+  <div class="small" style="margin-top:7px">快退、快进、播放速度及其他播放参数会自动保存，下次打开自动恢复（同一 Safari 网站）。</div>
 </div>
 
 <div class="card" id="sentencePlaySettingCard">
@@ -956,6 +958,26 @@ for(const [seconds,label] of [[20,"20 秒"],[30,"30 秒"],[60,"1 分钟"],[180,"
     $(id).appendChild(o);
   }
 }
+// 所有播放控制参数保存在当前网站本机存储，刷新和再次打开时自动恢复。
+const PLAY_CONTROL_KEY="ytPlaybackControlPrefs:v2";
+const PLAY_CONTROL_IDS=["rewindStep","forwardStep","speed","preciseStep","msStep","segmentMsStep"];
+let playbackControlPrefs={};
+try{const raw=JSON.parse(localStorage.getItem(PLAY_CONTROL_KEY)||"{}");if(raw&&typeof raw==="object")playbackControlPrefs=raw;}catch(_){}
+function restorePlaybackControlPrefs(){
+  for(const id of PLAY_CONTROL_IDS){
+    const el=document.getElementById(id),value=playbackControlPrefs[id];
+    if(el&&value!==undefined&&[...el.options].some(o=>o.value===String(value)))el.value=String(value);
+  }
+}
+function persistPlaybackControlPref(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  playbackControlPrefs[id]=el.value;
+  try{localStorage.setItem(PLAY_CONTROL_KEY,JSON.stringify(playbackControlPrefs));}catch(_){}
+}
+for(const id of PLAY_CONTROL_IDS){
+  document.getElementById(id).addEventListener("change",()=>persistPlaybackControlPref(id));
+}
 const PLAYBACK_SPEED_KEY="ytPlaybackSpeed:v1";
 let savedPlaybackSpeed=null;
 try{savedPlaybackSpeed=localStorage.getItem(PLAYBACK_SPEED_KEY);}catch(e){}
@@ -1058,6 +1080,7 @@ for(let ms=100;ms<=1000;ms+=100){
   $("#segmentMsStep").appendChild(o);
 }
 
+restorePlaybackControlPrefs();
 function setPlayerEnabled(on){
   $$(".needsPlayer").forEach(b=>b.disabled=!on);
 }
@@ -2025,6 +2048,7 @@ async function collectCompleteBackup(){
     sentenceAutoMode:$("#sentenceAutoMode").value,
     sentenceAutoInterval:$("#sentenceAutoInterval").value,
     sentencePlayTimes:$("#sentencePlayTimes").value,
+    playbackControls:Object.fromEntries(PLAY_CONTROL_IDS.map(id=>[id,document.getElementById(id).value])),
     segmentStores:collectSegmentStores(),
     subtitleStore:readSubtitleStore(),
     subtitleBindings:readSubtitleBindings(),
@@ -2055,7 +2079,7 @@ const BACKUP_GROUPS=[
   {id:"ai",label:"AI 英语听力（列表、文件夹、字幕及MP3）",keys:["aiItems","aiFolders","activeAiFolderFilter","aiAudioFiles"]},
   {id:"layout",label:"页面模块排序、折叠状态",keys:["moduleOrder","collapsedCards"]},
   {id:"vocab",label:"全部生词本、单词和图片",keys:["vocabBooks","activeVocabBookId","videoVocabMap"]},
-  {id:"settings",label:"播放设置",keys:["segmentCaptionFontSize","segmentAutoMode","segmentAutoInterval","sentenceAutoMode","sentenceAutoInterval","sentencePlayTimes"]}
+  {id:"settings",label:"播放设置",keys:["segmentCaptionFontSize","segmentAutoMode","segmentAutoInterval","sentenceAutoMode","sentenceAutoInterval","sentencePlayTimes","playbackControls"]}
 ];
 const backupOverlay=document.getElementById("backupChooseOverlay");
 const backupList=document.getElementById("backupChooseList");
@@ -2212,6 +2236,17 @@ $("#importCompleteJson").onchange=async function(){
       $("#sentencePlayTimes").value=String(data.sentencePlayTimes);
       localStorage.setItem(SENTENCE_PLAY_TIMES_KEY,String(data.sentencePlayTimes));
     }
+    if(hasSection("settings")&&data.playbackControls&&typeof data.playbackControls==="object"){
+      for(const id of PLAY_CONTROL_IDS){
+        const el=document.getElementById(id),v=data.playbackControls[id];
+        if(el&&v!==undefined&&[...el.options].some(o=>o.value===String(v))){
+          el.value=String(v);persistPlaybackControlPref(id);
+        }
+      }
+      // 旧版本语速存储也同步更新，避免下次打开被覆盖。
+      try{localStorage.setItem(PLAYBACK_SPEED_KEY,$("#speed").value);}catch(_){}
+      applySpeed();
+    }
     const restoredUrl=String(data.currentUrl||data.lastVideoUrl||"");
     if(hasSection("videos"))localStorage.setItem(LAST_VIDEO_URL_KEY,restoredUrl);
     if(hasSection("vocab")){vocabBooks=imported;
@@ -2288,6 +2323,145 @@ window.addEventListener("pagehide",()=>savePlaybackPosition(true));
 document.addEventListener("visibilitychange",()=>{if(document.hidden)savePlaybackPosition(true);});
 setInterval(()=>savePlaybackPosition(),1000);
 
+// iOS / iPadOS WebKit：短时间连续按键只提交最后一个定位请求。
+// 不使用固定 650ms 超时强行开始下一次 seek；只有 seeked 才代表真正完成。
+let nativeSeekPending=null, nativeSeekBusy=false, nativeSeekTimer=null;
+let nativeSeekDebounceTimer=null, nativePlayWanted=false, nativeSeekGeneration=0;
+let nativeSeekTarget=0, nativeSeekStartedAt=0, nativeRecoveryAt=0, nativeRecovering=false;
+let nativeSeekImmediateOnce=false, nativeLastPlayTry=0, nativeLastPlayPromise=null;
+let nativeSeekResumePending=false;
+function nativeStatus(message){const el=document.getElementById("videoStatus");if(el)el.textContent=message;}
+const NATIVE_SEEK_QUIET_MS=/iPhone|iPad|iPod/i.test(navigator.userAgent)?260:180;
+function isNativeSource(){return ["local","audio","direct"].includes(currentSourceType);}
+function clearNativeSeekTimers(){
+  clearTimeout(nativeSeekTimer);nativeSeekTimer=null;
+  clearTimeout(nativeSeekDebounceTimer);nativeSeekDebounceTimer=null;
+}
+function scheduleNativeSeek(delay=NATIVE_SEEK_QUIET_MS){
+  clearTimeout(nativeSeekDebounceTimer);
+  nativeSeekDebounceTimer=setTimeout(()=>{
+    nativeSeekDebounceTimer=null;
+    flushNativeSeek();
+  },delay);
+}
+function requestNativeSeek(time){
+  const video=document.getElementById("nativePlayer");
+  let target=Math.max(0,Number(time)||0);
+  if(Number.isFinite(video.duration)&&video.duration>0){target=Math.min(target,Math.max(0,video.duration-0.01));}
+  nativeSeekPending=target;
+  // 快速导航已经等待过按键停顿，避免再叠加一轮延迟。
+  const delay=nativeSeekImmediateOnce?0:NATIVE_SEEK_QUIET_MS;
+  nativeSeekImmediateOnce=false;
+  scheduleNativeSeek(delay);
+}
+function flushNativeSeek(){
+  const video=document.getElementById("nativePlayer");
+  if(!isNativeSource()||nativeRecovering||nativeSeekPending===null||video.readyState===0)return;
+  // seeking=true 期间绝不叠加第二个 seek；等待 seeked 或恢复机制。
+  if(nativeSeekBusy||video.seeking)return;
+  const target=nativeSeekPending;nativeSeekPending=null;
+  if(Math.abs((Number(video.currentTime)||0)-target)<0.045){
+    if(nativePlayWanted&&video.paused)resumeNativePlayback("定位完成");
+    return;
+  }
+  nativeSeekBusy=true;
+  nativeSeekTarget=target;
+  nativeSeekResumePending=nativePlayWanted;
+  // iPhone Safari: 停止解码旧位置后再 seek。不要让旧画面播放与跳转并行。
+  if(/iPhone|iPad|iPod/i.test(navigator.userAgent) && !video.paused){
+    try{video.pause();}catch(_){}
+  }
+  nativeSeekStartedAt=Date.now();
+  const generation=++nativeSeekGeneration;
+  try{video.currentTime=target;}catch(e){
+    nativeSeekBusy=false;
+    document.getElementById("videoStatus").textContent="定位失败："+(e.message||e);
+    if(nativeSeekPending!==null)scheduleNativeSeek(200);
+    return;
+  }
+  // 仅监测 seek 是否真正卡住；不能像旧版那样在超时后继续叠加 seek。
+  clearTimeout(nativeSeekTimer);
+  nativeSeekTimer=setTimeout(()=>{
+    if(generation!==nativeSeekGeneration||!nativeSeekBusy||!isNativeSource())return;
+    if(video.seeking){
+      document.getElementById("videoStatus").textContent="检测到视频定位卡住，正在重置解码器…";
+      recoverNativeVideo(true);
+    }else{
+      nativeSeekBusy=false;
+      if(nativeSeekPending!==null)scheduleNativeSeek(120);
+      else if(nativePlayWanted&&video.paused)resumeNativePlayback("定位完成");
+    }
+  },5000);
+}
+function resumeNativePlayback(reason){
+  const video=document.getElementById("nativePlayer");
+  if(!isNativeSource()||!nativePlayWanted||nativeRecovering||nativeSeekBusy||nativeSeekPending!==null||video.seeking)return;
+  // Safari 在 seeked 后可能尚未有解码好的画面，等 loadeddata/canplay 再启动。
+  if(video.readyState<2)return;
+  if(!video.paused)return;
+  if(nativeLastPlayPromise && Date.now()-nativeLastPlayTry<1800)return;
+  nativeLastPlayTry=Date.now();
+  try{
+    const result=video.play();
+    if(result&&typeof result.then==="function"){
+      const pending=nativeLastPlayPromise=result;
+      result.then(()=>{if(nativeLastPlayPromise===pending)nativeLastPlayPromise=null;},err=>{
+        if(nativeLastPlayPromise===pending)nativeLastPlayPromise=null;
+        if(!nativePlayWanted||!isNativeSource())return;
+        nativeStatus("Safari 未能自动继续播放（"+(err?.name||"播放限制")+"），请点视频 ▶ 或『恢复卡住的视频』。");
+      });
+    }
+  }catch(e){nativeStatus("无法继续播放："+(e.message||e));}
+}
+// iOS 极端情况下 seeked 永远不触发：只允许有限次重载，避免反复重载死循环。
+// iPhone Safari 卡死后仅调用 video.load() 往往无效；先卸载 src，释放媒体管线，再重新挂载同一 Blob URL。
+let nativeResetSerial=0;
+function recoverNativeVideo(automatic=false){
+  const video=document.getElementById("nativePlayer");
+  if(!isNativeSource()||!video.src||nativeRecovering)return;
+  if(automatic&&Date.now()-nativeRecoveryAt<15000){
+    nativeStatus("Safari 解码仍未响应，可点『强制恢复视频』重建播放连接。");
+    return;
+  }
+  nativeRecoveryAt=Date.now();
+  const sourceKey=currentSourceKey;
+  const sourceUrl=video.currentSrc||video.src;
+  const target=nativeSeekPending!==null?nativeSeekPending:
+    (nativeSeekBusy?nativeSeekTarget:(Number(video.currentTime)||0));
+  const shouldPlay=nativePlayWanted||!automatic;
+  const serial=++nativeResetSerial;
+  nativeRecovering=true;
+  clearNativeSeekTimers();
+  nativeSeekBusy=false;nativeSeekPending=null;nativeLastPlayPromise=null;
+  nativeSeekImmediateOnce=true;
+  ++nativeSeekGeneration;
+  try{
+    video.pause();
+    video.removeAttribute("src");
+    video.load(); // 真正卸载旧解码管线，不能只对原 src 调用 load()
+  }catch(e){
+    nativeRecovering=false;
+    nativeStatus("视频重置失败："+(e.message||e));
+    return;
+  }
+  nativeStatus("正在重新连接本地视频并恢复画面，请稍候…");
+  setTimeout(()=>{
+    if(serial!==nativeResetSerial||!isNativeSource()||currentSourceKey!==sourceKey)return;
+    try{
+      nativeSeekPending=Math.max(0,target);
+      nativePlayWanted=shouldPlay;
+      nativeRecovering=false;
+      video.preload="auto";
+      video.src=sourceUrl;
+      video.load();
+      nativeStatus("视频解码已重新初始化，正在恢复位置；若 Safari 拦截自动播放，请点画面 ▶。");
+    }catch(e){
+      nativeRecovering=false;
+      nativeStatus("重新连接失败："+(e.message||e));
+    }
+  },200);
+}
+
 let nativePlayerAdapter=null;
 let nativeSourceName="本地视频";
 function ensureNativePlayer(){
@@ -2296,23 +2470,33 @@ function ensureNativePlayer(){
   const playingState=()=>window.YT&&YT.PlayerState?YT.PlayerState.PLAYING:1;
   nativePlayerAdapter={
     getCurrentTime:()=>Number(video.currentTime)||0,
-    seekTo:t=>{video.currentTime=Math.max(0,Number(t)||0);},
-    playVideo:()=>video.play().catch(()=>{}),
-    pauseVideo:()=>video.pause(),
+    seekTo:t=>requestNativeSeek(t),
+    playVideo:()=>{nativePlayWanted=true; if(!nativeSeekBusy && nativeSeekPending===null && !video.seeking)resumeNativePlayback("按键播放");},
+    pauseVideo:()=>{nativePlayWanted=false;video.pause();},
     getPlayerState:()=>!video.paused&&!video.ended?playingState():2,
     getAvailablePlaybackRates:()=>[0.2,0.4,0.5,0.8,1,1.2,1.5,2],
     setPlaybackRate:r=>{video.playbackRate=Number(r)||1;},
     getVideoData:()=>({title:nativeSourceName})
   };
   video.addEventListener("loadedmetadata",()=>{
+    document.getElementById("nativeRecoverBtn").style.display="";
+    nativeSeekBusy=false;clearTimeout(nativeSeekTimer);nativeSeekTimer=null;
+    if(nativeSeekPending!==null)scheduleNativeSeek(160);
     if(currentSourceType!=="direct"&&currentSourceType!=="local"&&currentSourceType!=="audio")return;
+    // 重载恢复时没有待定位请求才恢复播放，避免在 iOS 的 seeking 阶段抢跑。
+    if(nativeSeekPending===null && nativePlayWanted && video.paused)resumeNativePlayback("元数据恢复");
     playerReady=true;setPlayerEnabled(true);applySpeed();startMonitor();loadSegmentsFromLocal();
     // 本地文件不自动跳转历史进度：iOS Safari 在 metadata 阶段 seek 可能导致黑屏。
     if(currentSourceType!=="local"&&currentSourceType!=="audio")restorePlaybackPosition();
     $("#videoStatus").textContent=`视频已加载：${nativeSourceName}，请点击视频画面上的 ▶ 播放`;
     if(currentSourceType==="direct")setTimeout(()=>autoSaveCurrentVideo(true),100);
   });
+  video.addEventListener("loadeddata",()=>resumeNativePlayback("画面准备完成"));
+  video.addEventListener("canplay",()=>resumeNativePlayback("可以播放"));
+  video.addEventListener("playing",()=>{nativeLastPlayPromise=null;});
   video.addEventListener("play",()=>{
+    // 用户通过 iPhone 原生播放控件启动时，同步网页播放意图。
+    nativePlayWanted=true;
     installRemoteSegmentControls();
     $("#togglePlay").textContent="⏸ 暂停";
     updatePlayCurrentButtonState();
@@ -2329,7 +2513,22 @@ function ensureNativePlayer(){
     const t=Number(video.currentTime)||0;
     lastMonitoredTime=t;
     lastMonitorWallTime=Date.now();
-    if(Date.now()>programmaticSeekUntil)syncCaptionsAfterUserSeek(t);
+    // 本程序发起的异步 seek 不能误判为用户拖动，否则会覆盖刚选中的字幕。
+    if(!nativeSeekBusy && nativeSeekPending===null && Date.now()>programmaticSeekUntil)syncCaptionsAfterUserSeek(t);
+    if(nativeSeekBusy){
+      clearTimeout(nativeSeekTimer);nativeSeekTimer=null;
+      nativeSeekBusy=false;
+      if(nativeSeekPending!==null){
+        // 只继续最新一次定位，旧请求的 seeked 不触发播放。
+        scheduleNativeSeek(80);
+      }else if(nativePlayWanted){
+        resumeNativePlayback("定位结束");
+      }
+    }else if(nativeSeekPending!==null){
+      scheduleNativeSeek(80);
+    }else if(nativePlayWanted){
+      resumeNativePlayback("定位事件");
+    }
   });
   // 仅在用户原本正在播放、且没有主动暂停/句末停止时，尝试恢复缓冲停滞。
   let bufferWatchTimer=null, bufferWatchAt=0, bufferWatchTime=0, bufferWatchAttempts=0;
@@ -2344,7 +2543,7 @@ function ensureNativePlayer(){
     if(bufferWatchAttempts>=2){$("#videoStatus").textContent="视频持续卡顿：可能是文件编码、设备解码或存储读取问题。请尝试重新选择视频，或转为 H.264/AAC MP4。";return;}
     bufferWatchAttempts++;
     // 不跳动播放位置，不重载文件，不改变字幕/AB 状态。
-    try{video.play().catch(()=>{});}catch(e){}
+    if(nativePlayWanted)resumeNativePlayback("缓冲恢复");
     $("#videoStatus").textContent="检测到缓冲停滞，正在尝试恢复播放（"+bufferWatchAttempts+"/2）…";
     bufferWatchAt=Date.now();bufferWatchTime=video.currentTime;
     bufferWatchTimer=setTimeout(checkBufferRecovery,2200);
@@ -2354,6 +2553,41 @@ function ensureNativePlayer(){
     stopBufferWatch();bufferWatchAt=Date.now();bufferWatchTime=video.currentTime;bufferWatchAttempts=0;
     bufferWatchTimer=setTimeout(checkBufferRecovery,2200);
   };
+  // Safari 有时既不发 waiting/stalled，也不再触发 timeupdate；定期检测实际进度。
+  let safariLastTime=-1,safariLastProgressAt=Date.now(),safariLastRecoveryAt=0,safariSoftRecoveries=0;
+  setInterval(()=>{
+    if(!isNativeSource()||!playerReady||document.hidden||!nativePlayWanted||nativeRecovering||
+       iphoneSentenceNavPending||nativeSeekBusy||nativeSeekPending!==null||video.seeking||video.ended){
+      safariLastTime=-1;safariLastProgressAt=Date.now();return;
+    }
+    const t=Number(video.currentTime)||0;
+    if(safariLastTime<0||Math.abs(t-safariLastTime)>0.12){
+      safariLastTime=t;safariLastProgressAt=Date.now();safariSoftRecoveries=0;return;
+    }
+    if(playSentenceMode&&lockedSentenceIndex>=0&&subs[lockedSentenceIndex]&&t>=subs[lockedSentenceIndex].end-0.1)return;
+    const stalledFor=Date.now()-safariLastProgressAt;
+    if(stalledFor<3200)return;
+    if(Date.now()-safariLastRecoveryAt<6500)return;
+    safariLastRecoveryAt=Date.now();
+    if(safariSoftRecoveries>=2){
+      safariSoftRecoveries=0;
+      nativeStatus("Safari 持续无声无画面，正在重建视频解码…");
+      recoverNativeVideo(true);
+      safariLastProgressAt=Date.now();
+      return;
+    }
+    safariSoftRecoveries++;
+    if(video.paused){
+      nativeStatus("Safari 视频意外暂停，正在尝试继续播放…");
+      resumeNativePlayback("停滞检测");
+    }else{
+      nativeStatus("Safari 视频画面与声音停滞，正在尝试恢复…");
+      try{video.pause();}catch(_){}
+      // 播放意图不变；短暂让解码器释放旧状态。
+      setTimeout(()=>resumeNativePlayback("解码器停滞"),120);
+    }
+    safariLastProgressAt=Date.now();
+  },1300);
   video.addEventListener("waiting",watchBuffer);
   video.addEventListener("stalled",watchBuffer);
   video.addEventListener("playing",()=>{stopBufferWatch();bufferWatchAttempts=0;});
@@ -2368,6 +2602,7 @@ function ensureNativePlayer(){
 }
 
 function loadNativeVideo(src,key,name,type){
+  ++nativeResetSerial; // 防止上一个视频的异步恢复误加载到新视频
   clearTimeout(subtitleSaveTimer);
   beginPositionMedia(key);
   cancelSegmentPlay();playSentenceMode=false;
@@ -2375,10 +2610,14 @@ function loadNativeVideo(src,key,name,type){
   if(youtubePlayer&&youtubePlayer.pauseVideo)youtubePlayer.pauseVideo();
   currentSourceType=type;currentSourceKey=key;nativeSourceName=name||"媒体";
   const video=$("#nativePlayer");
+  document.getElementById("nativeRecoverBtn").style.display="";
   $("#player").style.display="none";video.style.display="block";
   if(nativeObjectUrl&&nativeObjectUrl!==src){URL.revokeObjectURL(nativeObjectUrl);nativeObjectUrl="";}
   if(type==="local"||type==="audio")nativeObjectUrl=src;
   player=ensureNativePlayer();playerReady=false;setPlayerEnabled(false);
+  clearNativeSeekTimers();nativeSeekBusy=false;nativeSeekPending=null;
+  nativeSeekImmediateOnce=false;nativeLastPlayPromise=null;
+  nativePlayWanted=false;nativeRecovering=false;++nativeSeekGeneration;
   video.pause();
   video.removeAttribute("src");
   video.controls=true;
@@ -2392,6 +2631,12 @@ function loadNativeVideo(src,key,name,type){
   $("#videoStatus").textContent=type==="audio"?"正在加载 MP3…":"正在加载视频…";
   // iPhone/iPad 必须由用户点击原生播放键启动，不在加载时抢先调用 play()。
 }
+
+document.getElementById("nativeRecoverBtn").addEventListener("click",()=>{
+  if(!isNativeSource())return;
+  nativePlayWanted=true;
+  recoverNativeVideo(false); // 即使 paused=false，也可能画面和声音均已卡死
+});
 
 let ytEmbedHost="https://www.youtube.com";
 let ytPendingId="";
@@ -2412,6 +2657,7 @@ function createOrLoadVideo(id){
   playSentenceMode=false;
   lastMonitoredTime=null;lastMonitorWallTime=0;
   currentSourceType="youtube";currentSourceKey=id;
+  document.getElementById("nativeRecoverBtn").style.display="none";
   const native=$("#nativePlayer");native.pause();native.style.display="none";
   $("#player").style.display="block";
   if(youtubePlayer && typeof youtubePlayer.loadVideoById==="function"){
@@ -2683,6 +2929,7 @@ function applySpeed(){
 }
 playbackSpeedSelect.onchange=()=>{
   try{localStorage.setItem(PLAYBACK_SPEED_KEY,playbackSpeedSelect.value);}catch(e){}
+  persistPlaybackControlPref("speed");
   applySpeed();
 };
 
@@ -2697,6 +2944,8 @@ function adjustPlaybackSpeedStep(direction){
 }
 
 function seekByStep(delta){
+  const nativeBase=isNativeSource()&&nativeSeekPending!==null?nativeSeekPending:
+    (isNativeSource()&&nativeSeekBusy?nativeSeekTarget:now());
   cancelSegmentPlay();
   suppressAutoUntil=Date.now()+500;
 
@@ -2705,7 +2954,7 @@ function seekByStep(delta){
     const index=lockedSentenceIndex;
     const sentence=subs[index];
     const lastSafeTime=Math.max(sentence.start,sentence.end-0.05);
-    const target=Math.max(sentence.start,Math.min(lastSafeTime,now()+delta));
+    const target=Math.max(sentence.start,Math.min(lastSafeTime,nativeBase+delta));
     seekKeepingSentence(target,index);
     $("#sentenceStatus").textContent=isPlaying()
       ? `🔒 第${index+1}句内${delta<0?"快退":"快进"} · 继续播放本句`
@@ -2715,7 +2964,7 @@ function seekByStep(delta){
   }
 
   cancelSentencePlay();
-  seek(now()+delta);
+  seek(nativeBase+delta);
 }
 
 $("#rewind").onclick=function(){
@@ -3906,6 +4155,7 @@ for(const seconds of [...Array.from({length:10},(_,i)=>i+1),60,300,600]){
   option.textContent=seconds<60?seconds+"秒":seconds/60+"分钟";
   option.selected=seconds===5;$("#preciseStep").appendChild(option);
 }
+restorePlaybackControlPrefs();
 $("#preciseTime").addEventListener("change",()=>preciseSeekTo(parseNewCueTime($("#preciseTime").value)));
 $("#preciseTime").addEventListener("keydown",e=>{
   if(e.key==="Enter"){e.preventDefault();$("#preciseTime").blur();}
@@ -3951,6 +4201,9 @@ $("#insertNewCue").onclick=function(){
 };
 
 function playSelectedSentence(resetRunCount=true){
+  // 其他操作触发播放本句时，取消尚未执行的 iPhone 快速导航。
+  if(iphoneSentenceNavTimer){clearTimeout(iphoneSentenceNavTimer);iphoneSentenceNavTimer=null;}
+  iphoneSentenceNavPending=false;
   sentenceReplayClickUntil=0;
   if(!playerReady||!subs.length)return;
   if(resetRunCount)sentenceRunPlayCount=0;
@@ -4064,19 +4317,42 @@ function scheduleNextSentencePlay(finishedIndex){
   },interval*1000);
 }
 
-$("#prev").onclick=function(){
+// iPhone Safari：快速按上一句/下一句时，字幕立即响应，但视频只在按键停顿后定位一次。
+// 避免每个按键都调用 seek+play 导致 WebKit 硬解码器陷入等待。
+let iphoneSentenceNavTimer=null;
+let iphoneSentenceNavPending=false;
+function navigateSentence(delta){
   if(!playerReady||!subs.length)return;
-  current=Math.max(0,current-1);
+  current=Math.max(0,Math.min(subs.length-1,current+delta));
   updateTop();
-  playSelectedSentence();
-};
-
-$("#next").onclick=function(){
-  if(!playerReady||!subs.length)return;
-  current=Math.min(subs.length-1,current+1);
-  updateTop();
-  playSelectedSentence();
-};
+  if(!isAppleTouchDevice||!isNativeSource()){
+    playSelectedSentence();
+    return;
+  }
+  if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
+  // 立即锁定最新选中句，旧句的播放终点检测不应在导航过程中执行。
+  sentenceCaptionLocked=true;
+  lockedSentenceIndex=current;
+  playSentenceMode=false;
+  sentenceRunPlayCount=0;
+  suppressAutoUntil=Date.now()+1800;
+  iphoneSentenceNavPending=true;
+  // 关键修复：快速导航时只改字幕，不播放旧时间点、不反复 pause/play。
+  // 第一次按键暂停旧位置，等最后一次按键结束后仅定位一次。
+  const nativeVideo=$("#nativePlayer");
+  nativePlayWanted=true;
+  if(!iphoneSentenceNavTimer && !nativeVideo.paused){try{nativeVideo.pause();}catch(_){}}
+  clearTimeout(iphoneSentenceNavTimer);
+  iphoneSentenceNavTimer=setTimeout(()=>{
+    iphoneSentenceNavTimer=null;
+    iphoneSentenceNavPending=false;
+    nativeSeekImmediateOnce=true;
+    playSelectedSentence();
+  },430);
+  $("#sentenceStatus").textContent=`已选第${current+1}句 · Safari 稳定定位中（停按后播放）`;
+}
+$("#prev").onclick=()=>navigateSentence(-1);
+$("#next").onclick=()=>navigateSentence(1);
 
 $("#playCurrent").onclick=function(){
   if(!playerReady||!subs[current])return;
@@ -4416,12 +4692,14 @@ function enforceNativeSentenceBoundary(){
   if(!playerReady || !sentenceCaptionLocked || lockedSentenceIndex<0 || !subs[lockedSentenceIndex])return;
   if(currentSourceType==="youtube")return;
   const video=$("#nativePlayer"), cue=subs[lockedSentenceIndex];
-  if(!video || video.seeking || video.paused || video.currentTime<cue.end-0.025)return;
+  if(!video || iphoneSentenceNavPending || nativeSeekBusy || nativeSeekPending!==null || video.seeking || video.paused || video.currentTime<cue.end-0.025)return;
   if(playSentenceMode){
     // 交由主监控统一计数和重播，先立即停住，防止串到下一句。
+    // 只在实际到句尾时停住；播放意图交给主监控处理。
     video.pause();
     return;
   }
+  nativePlayWanted=false;
   video.pause();
   seekKeepingSentence(cue.end,lockedSentenceIndex);
 }
@@ -4432,6 +4710,7 @@ function startMonitor(){
   lastMonitorWallTime=Date.now();
   monitorTimer=setInterval(function(){
     if(!playerReady)return;
+    if(iphoneSentenceNavPending)return; // 连续按键时不根据旧视频进度触发句末暂停/重播。
     updateRemotePlaybackState();
     refreshPreciseTime();
     const t=now();
@@ -4481,7 +4760,7 @@ function startMonitor(){
     if(!subs.length)return;
 
     // 定位期间读到的时间可能还在上一句的结束点。
-    if(currentSourceType!=="youtube" && $("#nativePlayer").seeking)return;
+    if(currentSourceType!=="youtube" && ($("#nativePlayer").seeking || nativeSeekBusy || nativeSeekPending!==null))return;
 
     if(playSentenceMode && lockedSentenceIndex>=0 && subs[lockedSentenceIndex]){
       const sentence=subs[lockedSentenceIndex];
