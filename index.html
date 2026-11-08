@@ -4465,10 +4465,16 @@ function focusKeyboardBridge(force=false){
   // 用户点击小键盘浮标或播放器按钮时，可从已失去编辑意图的 select/input 收回焦点。
   // 非用户操作（自动恢复）仍绝不打断正在输入的文字。
   if(!force && isRealEditor(document.activeElement))return;
-  try{
-    keyboardBridge.focus({preventScroll:true});
-  }catch(_){
-    try{ keyboardBridge.focus(); }catch(__){}
+  // iPhone Safari: 已有焦点时绝不重复 focus；隐藏在屏幕外的 input
+  // 会使 Safari 把整个页面滚动到输入框，导致每按一次小键盘屏幕跳一下。
+  if(document.activeElement!==keyboardBridge){
+    const beforeX=window.scrollX, beforeY=window.scrollY;
+    try{keyboardBridge.focus({preventScroll:true});}
+    catch(_){try{keyboardBridge.focus();}catch(__){}}
+    // 某些 iOS 版本不遵守 preventScroll，仅在实际改变滚动位置时纠正。
+    if(Math.abs(window.scrollY-beforeY)>1 || Math.abs(window.scrollX-beforeX)>1){
+      window.scrollTo(beforeX,beforeY);
+    }
   }
   keyboardBridge.value="";
   // 再次确保桥接框保持“无软键盘”输入模式。
@@ -4554,10 +4560,15 @@ if(isAppleTouchDevice){
   keyboardBridge.setAttribute("enterkeyhint","done");
   keyboardBridge.style.cssText=[
     "position:fixed",
-    "left:-10000px",
-    "top:0",
-    "width:1px",
-    "height:1px",
+    // 桥接框留在可视窗口中央而不是 left:-10000px，避免 Safari 自动滚屏。
+    "left:50%",
+    "top:50%",
+    "transform:translate(-50%,-50%)",
+    "width:2px",
+    "height:2px",
+    "padding:0",
+    "border:0",
+    "outline:0",
     "opacity:0",
     "pointer-events:none",
     "font-size:16px"
@@ -4610,18 +4621,21 @@ if(isAppleTouchDevice){
     focusKeyboardBridge(true);
   });
 
+  // 不在 blur 时立刻抢回焦点：iOS Safari 会在点按钮和蓝牙键入之间
+  // 反复切换焦点、改变可视区域，造成跳屏。用户可点浮标手动激活。
   keyboardBridge.addEventListener("blur",()=>{
-    setTimeout(()=>{
-      if(!isRealEditor(document.activeElement))focusKeyboardBridge();
-    },80);
+    if(keyboardBridgeBadge)keyboardBridgeBadge.textContent="⌨️ 小键盘：点此激活";
   });
 
+  // 点击播放器按钮不再强制重新 focus，避免每次按键或点击造成页面跳动。
+  // 从输入框返回播放时，可点一次浮动「小键盘」恢复硬件按键。
   document.addEventListener("pointerup",function(e){
-    if(e.target===keyboardBridgeBadge)return;
-    if(isRealEditor(e.target)||e.target.closest?.("#currentSubtitle"))return;
-    // iPhone Safari：操作按钮后，之前的 select 可能仍保有焦点。
-    // 用户已点在非编辑区域，允许重新将蓝牙按键交给播放器。
-    setTimeout(()=>focusKeyboardBridge(true),80);
+    if(e.target===keyboardBridgeBadge || isRealEditor(e.target))return;
+    if(document.activeElement===keyboardBridge)return;
+    // 只在没有真实编辑焦点且失去桥接焦点时尝试一次。
+    if(!isRealEditor(document.activeElement) && !e.target.closest?.("#currentSubtitle")){
+      setTimeout(()=>focusKeyboardBridge(),100);
+    }
   },true);
 
   // 输入框失焦后恢复；若焦点已进入另一输入框则不打断输入。
@@ -4639,7 +4653,7 @@ if(isAppleTouchDevice){
     if(!isRealEditor(document.activeElement))setTimeout(focusKeyboardBridge,50);
   },true);
 
-  window.addEventListener("focus",()=>setTimeout(focusKeyboardBridge,80));
+  // 不监听 window focus 反复抢焦点；由首次加载、pageshow 和浮标激活。
 
   document.addEventListener("visibilitychange",()=>{
     if(!document.hidden)setTimeout(focusKeyboardBridge,120);
@@ -4716,9 +4730,7 @@ function handleHardwareShortcut(e){
   e.preventDefault();
   if(isAppleTouchDevice)e.stopPropagation();
   action();
-  if(isAppleTouchDevice && !isRealEditor(document.activeElement)){
-    setTimeout(()=>focusKeyboardBridge(),80);
-  }
+  // 快捷键每次触发后不再重复调用 input.focus()：Safari 会因此上下跳屏。
   const status=document.getElementById("keyboardHelpStatus");
   if(status)status.textContent="⌨️ 已收到按键："+code+"。快捷键工作正常。";
 
