@@ -177,8 +177,8 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · Safari 防卡顿与设置记忆 · <strong style="color:#087a45">⌨️ Safari 快速定位优化 V7 · 参数自动记忆</strong></div>
-<div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 键盘状态：正在检测。蓝牙连接由 iPad 管理；首次可能需要轻点网页一次。</div>
+<div class="version">本机版 · Safari 防卡顿与设置记忆 · <strong style="color:#087a45">Safari 原生播放器重建版 · 连按不暂停 · 设置记忆</strong></div>
+<div id="keyboardHelpStatus" style="padding:9px 12px;background:#eaf6ff;color:#174b73;border-radius:10px;font-size:13px;margin:7px 0">⌨️ 蓝牙小键盘：按数字键可控制播放器。如无响应，请点浮动的「小键盘：点此激活」。</div>
 
 <div class="card">
   <b>视频与字幕绑定</b>
@@ -234,7 +234,7 @@ body.module-sort-active{user-select:none;-webkit-user-select:none;overflow:hidde
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
-  <div class="controls"><button type="button" class="secondary" id="nativeRecoverBtn" style="display:none">🔄 强制恢复视频</button></div>
+  <div class="controls"><button type="button" class="secondary" id="nativeRecoverBtn" style="display:none">🔄 重建视频播放器</button></div>
 </div>
 <div class="card" id="phoneticCard">
   <b>谐音输入框</b>
@@ -2330,6 +2330,16 @@ let nativeSeekDebounceTimer=null, nativePlayWanted=false, nativeSeekGeneration=0
 let nativeSeekTarget=0, nativeSeekStartedAt=0, nativeRecoveryAt=0, nativeRecovering=false;
 let nativeSeekImmediateOnce=false, nativeLastPlayTry=0, nativeLastPlayPromise=null;
 let nativeSeekResumePending=false;
+// 保存用户选中的 File，以便 Safari 媒体管线完全失效后重新生成 Blob URL。
+let nativeOriginalFile=null;
+let nativeWatchdogTimer=null;
+let nativeRecoveryPromptPending=false;
+let nativeHardRecoveryCount=0;
+function nativeDiagnostic(){
+  const v=document.getElementById("nativePlayer");
+  const err=v?.error;
+  return `就绪${v?.readyState ?? "?"} / 网络${v?.networkState ?? "?"} / 定位${v?.seeking?"中":"否"} / 错误${err?.code||0}`;
+}
 function nativeStatus(message){const el=document.getElementById("videoStatus");if(el)el.textContent=message;}
 const NATIVE_SEEK_QUIET_MS=/iPhone|iPad|iPod/i.test(navigator.userAgent)?260:180;
 function isNativeSource(){return ["local","audio","direct"].includes(currentSourceType);}
@@ -2367,10 +2377,8 @@ function flushNativeSeek(){
   nativeSeekBusy=true;
   nativeSeekTarget=target;
   nativeSeekResumePending=nativePlayWanted;
-  // iPhone Safari: 停止解码旧位置后再 seek。不要让旧画面播放与跳转并行。
-  if(/iPhone|iPad|iPod/i.test(navigator.userAgent) && !video.paused){
-    try{video.pause();}catch(_){}
-  }
+  // Safari：不要为 seek 主动 pause()。异步 seeked 后才 play() 会丢失
+  // 用户手势授权，造成字幕变了而音视频永远无法恢复。
   nativeSeekStartedAt=Date.now();
   const generation=++nativeSeekGeneration;
   try{video.currentTime=target;}catch(e){
@@ -2417,49 +2425,75 @@ function resumeNativePlayback(reason){
 // iPhone Safari 卡死后仅调用 video.load() 往往无效；先卸载 src，释放媒体管线，再重新挂载同一 Blob URL。
 let nativeResetSerial=0;
 function recoverNativeVideo(automatic=false){
-  const video=document.getElementById("nativePlayer");
-  if(!isNativeSource()||!video.src||nativeRecovering)return;
-  if(automatic&&Date.now()-nativeRecoveryAt<15000){
-    nativeStatus("Safari 解码仍未响应，可点『强制恢复视频』重建播放连接。");
-    return;
-  }
+  const oldVideo=document.getElementById("nativePlayer");
+  if(!isNativeSource()||!oldVideo?.src||nativeRecovering)return;
+  if(automatic&&Date.now()-nativeRecoveryAt<20000)return;
   nativeRecoveryAt=Date.now();
   const sourceKey=currentSourceKey;
-  const sourceUrl=video.currentSrc||video.src;
+  const sourceType=currentSourceType;
+  const sourceName=nativeSourceName;
+  const oldUrl=oldVideo.src;
   const target=nativeSeekPending!==null?nativeSeekPending:
-    (nativeSeekBusy?nativeSeekTarget:(Number(video.currentTime)||0));
-  const shouldPlay=nativePlayWanted||!automatic;
+    (nativeSeekBusy?nativeSeekTarget:(Number(oldVideo.currentTime)||0));
   const serial=++nativeResetSerial;
   nativeRecovering=true;
+  ++nativeHardRecoveryCount;
   clearNativeSeekTimers();
-  nativeSeekBusy=false;nativeSeekPending=null;nativeLastPlayPromise=null;
-  nativeSeekImmediateOnce=true;
   ++nativeSeekGeneration;
+  nativeSeekBusy=false;
+  nativeSeekPending=null;
+  nativeLastPlayPromise=null;
+  if(nativeWatchdogTimer){clearInterval(nativeWatchdogTimer);nativeWatchdogTimer=null;}
+  try{oldVideo.pause();}catch(_){}
+  // 旧 video 节点的解码器可能已死锁；对同一节点反复 load() 无法修复。
+  // 必须换全新的 video 元素，并重新绑定所有播放事件。
+  let freshUrl=oldUrl;
   try{
-    video.pause();
-    video.removeAttribute("src");
-    video.load(); // 真正卸载旧解码管线，不能只对原 src 调用 load()
+    if(nativeOriginalFile&&(sourceType==="local"||sourceType==="audio")){
+      freshUrl=URL.createObjectURL(nativeOriginalFile);
+    }
+    const replacement=document.createElement("video");
+    replacement.id="nativePlayer";
+    replacement.controls=true;
+    replacement.playsInline=true;
+    replacement.setAttribute("playsinline","");
+    replacement.preload="metadata";
+    replacement.autoplay=false;
+    replacement.style.display="block";
+    replacement.muted=oldVideo.muted;
+    try{replacement.volume=oldVideo.volume;}catch(_){}
+    oldVideo.removeAttribute("src");
+    oldVideo.replaceWith(replacement);
+    // oldVideo 现已脱离 DOM；不在它上面调用 load()，避免触发旧媒体事件。
+    nativePlayerAdapter=null;
+    player=ensureNativePlayer();
+    replacement.addEventListener("timeupdate",enforceNativeSentenceBoundary);
+    playerReady=false;
+    setPlayerEnabled(false);
+    nativeSeekPending=Math.max(0,target);
+    nativeSeekImmediateOnce=true;
+    nativePlayWanted=false; // iOS 自动播放许可不可靠；要求一次真实点击
+    nativeRecoveryPromptPending=true;
+    currentSourceType=sourceType;
+    currentSourceKey=sourceKey;
+    nativeSourceName=sourceName;
+    if(freshUrl!==oldUrl){
+      nativeObjectUrl=freshUrl;
+      setTimeout(()=>{try{URL.revokeObjectURL(oldUrl);}catch(_){}},3000);
+    }
+    replacement.src=freshUrl;
+    replacement.load();
+    nativeStatus("已重建 Safari 播放器，正在恢复上次位置。完成后请点视频画面 ▶；若仍不动，请换 H.264/AAC MP4。" );
+    setTimeout(()=>{
+      if(serial!==nativeResetSerial||currentSourceKey!==sourceKey)return;
+      nativeRecovering=false;
+      if(replacement.readyState>=1&&nativeSeekPending!==null)scheduleNativeSeek(0);
+      nativeStatus(`播放器已重建（${nativeDiagnostic()}）。请点画面 ▶；如仍卡住，可能是文件编码或 Safari 解码限制。`);
+    },500);
   }catch(e){
     nativeRecovering=false;
-    nativeStatus("视频重置失败："+(e.message||e));
-    return;
+    nativeStatus("重建播放器失败："+(e.message||e));
   }
-  nativeStatus("正在重新连接本地视频并恢复画面，请稍候…");
-  setTimeout(()=>{
-    if(serial!==nativeResetSerial||!isNativeSource()||currentSourceKey!==sourceKey)return;
-    try{
-      nativeSeekPending=Math.max(0,target);
-      nativePlayWanted=shouldPlay;
-      nativeRecovering=false;
-      video.preload="auto";
-      video.src=sourceUrl;
-      video.load();
-      nativeStatus("视频解码已重新初始化，正在恢复位置；若 Safari 拦截自动播放，请点画面 ▶。");
-    }catch(e){
-      nativeRecovering=false;
-      nativeStatus("重新连接失败："+(e.message||e));
-    }
-  },200);
 }
 
 let nativePlayerAdapter=null;
@@ -2471,7 +2505,14 @@ function ensureNativePlayer(){
   nativePlayerAdapter={
     getCurrentTime:()=>Number(video.currentTime)||0,
     seekTo:t=>requestNativeSeek(t),
-    playVideo:()=>{nativePlayWanted=true; if(!nativeSeekBusy && nativeSeekPending===null && !video.seeking)resumeNativePlayback("按键播放");},
+    playVideo:()=>{
+      nativePlayWanted=true;
+      // Safari 用户手势授权只在点击/按键回调里有效，不能等到 seeked 才第一次 play。
+      if(video.paused && !nativeRecovering && video.readyState>=2){
+        try{const p=video.play();if(p?.catch)p.catch(err=>nativeStatus(`播放受 Safari 限制（${err?.name||"未知"}），请点画面 ▶。`));}catch(_){}
+      }
+      if(!nativeSeekBusy && nativeSeekPending===null && !video.seeking)resumeNativePlayback("按键播放");
+    },
     pauseVideo:()=>{nativePlayWanted=false;video.pause();},
     getPlayerState:()=>!video.paused&&!video.ended?playingState():2,
     getAvailablePlaybackRates:()=>[0.2,0.4,0.5,0.8,1,1.2,1.5,2],
@@ -2488,12 +2529,14 @@ function ensureNativePlayer(){
     playerReady=true;setPlayerEnabled(true);applySpeed();startMonitor();loadSegmentsFromLocal();
     // 本地文件不自动跳转历史进度：iOS Safari 在 metadata 阶段 seek 可能导致黑屏。
     if(currentSourceType!=="local"&&currentSourceType!=="audio")restorePlaybackPosition();
-    $("#videoStatus").textContent=`视频已加载：${nativeSourceName}，请点击视频画面上的 ▶ 播放`;
+    $("#videoStatus").textContent=nativeRecoveryPromptPending
+      ? `恢复已加载到视频位置（${nativeDiagnostic()}）。请点击画面 ▶ 开始播放。`
+      : `视频已加载：${nativeSourceName}，请点击视频画面上的 ▶ 播放`;
     if(currentSourceType==="direct")setTimeout(()=>autoSaveCurrentVideo(true),100);
   });
   video.addEventListener("loadeddata",()=>resumeNativePlayback("画面准备完成"));
   video.addEventListener("canplay",()=>resumeNativePlayback("可以播放"));
-  video.addEventListener("playing",()=>{nativeLastPlayPromise=null;});
+  video.addEventListener("playing",()=>{nativeLastPlayPromise=null;nativeRecoveryPromptPending=false;});
   video.addEventListener("play",()=>{
     // 用户通过 iPhone 原生播放控件启动时，同步网页播放意图。
     nativePlayWanted=true;
@@ -2555,7 +2598,8 @@ function ensureNativePlayer(){
   };
   // Safari 有时既不发 waiting/stalled，也不再触发 timeupdate；定期检测实际进度。
   let safariLastTime=-1,safariLastProgressAt=Date.now(),safariLastRecoveryAt=0,safariSoftRecoveries=0;
-  setInterval(()=>{
+  if(nativeWatchdogTimer)clearInterval(nativeWatchdogTimer);
+  nativeWatchdogTimer=setInterval(()=>{
     if(!isNativeSource()||!playerReady||document.hidden||!nativePlayWanted||nativeRecovering||
        iphoneSentenceNavPending||nativeSeekBusy||nativeSeekPending!==null||video.seeking||video.ended){
       safariLastTime=-1;safariLastProgressAt=Date.now();return;
@@ -2602,6 +2646,8 @@ function ensureNativePlayer(){
 }
 
 function loadNativeVideo(src,key,name,type){
+  if(type!=="local")nativeOriginalFile=null;
+  nativeRecoveryPromptPending=false;
   ++nativeResetSerial; // 防止上一个视频的异步恢复误加载到新视频
   clearTimeout(subtitleSaveTimer);
   beginPositionMedia(key);
@@ -2635,7 +2681,7 @@ function loadNativeVideo(src,key,name,type){
 document.getElementById("nativeRecoverBtn").addEventListener("click",()=>{
   if(!isNativeSource())return;
   nativePlayWanted=true;
-  recoverNativeVideo(false); // 即使 paused=false，也可能画面和声音均已卡死
+  recoverNativeVideo(false); // 重新创建 video DOM 和 Blob URL，避免对死锁节点重复 load()
 });
 
 let ytEmbedHost="https://www.youtube.com";
@@ -2791,6 +2837,7 @@ $("#localVideoFile").onchange=async function(){
   const file=this.files&&this.files[0];
   if(!file)return;
   this.value="";
+  nativeOriginalFile=file;
   const src=URL.createObjectURL(file);
   const legacyKey=`local:${hashText(`${file.name}|${file.size}|${file.lastModified}`)}`;
   // 先加载视频，绝不等待字幕指纹计算，避免大文件选择后一直不能播放。
@@ -4337,11 +4384,9 @@ function navigateSentence(delta){
   sentenceRunPlayCount=0;
   suppressAutoUntil=Date.now()+1800;
   iphoneSentenceNavPending=true;
-  // 关键修复：快速导航时只改字幕，不播放旧时间点、不反复 pause/play。
-  // 第一次按键暂停旧位置，等最后一次按键结束后仅定位一次。
-  const nativeVideo=$("#nativePlayer");
+  // 连按期间不暂停原生 video：Safari 可能拒绝异步 seeked 后的 play()。
+  // 字幕立即更新，实际 seek 仍合并为最后一次。
   nativePlayWanted=true;
-  if(!iphoneSentenceNavTimer && !nativeVideo.paused){try{nativeVideo.pause();}catch(_){}}
   clearTimeout(iphoneSentenceNavTimer);
   iphoneSentenceNavTimer=setTimeout(()=>{
     iphoneSentenceNavTimer=null;
@@ -4414,9 +4459,12 @@ document.addEventListener("pointerdown",e=>{
   if(subtitleTouchActive){subtitleTouchActive=false;setTimeout(updateTop,0);}
 },true);
 
-function focusKeyboardBridge(){
+function focusKeyboardBridge(force=false){
   if(document.hidden || subtitleSelectionActive())return;
-  if(!isAppleTouchDevice || !keyboardBridge || !keyboardBridgeEnabled || isRealEditor(document.activeElement))return;
+  if(!isAppleTouchDevice || !keyboardBridge || !keyboardBridgeEnabled)return;
+  // 用户点击小键盘浮标或播放器按钮时，可从已失去编辑意图的 select/input 收回焦点。
+  // 非用户操作（自动恢复）仍绝不打断正在输入的文字。
+  if(!force && isRealEditor(document.activeElement))return;
   try{
     keyboardBridge.focus({preventScroll:true});
   }catch(_){
@@ -4559,7 +4607,7 @@ if(isAppleTouchDevice){
 
   keyboardBridgeBadge.addEventListener("click",()=>{
     keyboardBridgeEnabled=true;
-    focusKeyboardBridge();
+    focusKeyboardBridge(true);
   });
 
   keyboardBridge.addEventListener("blur",()=>{
@@ -4571,7 +4619,9 @@ if(isAppleTouchDevice){
   document.addEventListener("pointerup",function(e){
     if(e.target===keyboardBridgeBadge)return;
     if(isRealEditor(e.target)||e.target.closest?.("#currentSubtitle"))return;
-    setTimeout(focusKeyboardBridge,80);
+    // iPhone Safari：操作按钮后，之前的 select 可能仍保有焦点。
+    // 用户已点在非编辑区域，允许重新将蓝牙按键交给播放器。
+    setTimeout(()=>focusKeyboardBridge(true),80);
   },true);
 
   // 输入框失焦后恢复；若焦点已进入另一输入框则不打断输入。
@@ -4606,40 +4656,30 @@ if(isAppleTouchDevice){
 }
 
 function normalizeShortcutCode(e){
-  if(e.code){
-    // 部分 iPhone/iPad 会把外接小键盘数字报告成 Digit，桥接状态下统一按小键盘处理。
-    if(isAppleTouchDevice && keyboardBridge && e.target===keyboardBridge){
-      const digitToNumpad={Digit0:"Numpad0",Digit1:"Numpad1",Digit3:"Numpad3",Digit5:"Numpad5",Digit6:"Numpad6",Digit7:"Numpad7",Digit8:"Numpad8",Digit9:"Numpad9"};
-      if(digitToNumpad[e.code])return digitToNumpad[e.code];
+  const code=String(e.code||"");
+  const key=String(e.key||"");
+  // Safari 的蓝牙数字小键盘有时报告 Digit0 / Unidentified / 空 code。
+  // 在 iPhone/iPad 的非文字编辑区域，将这些数字统一解释为小键盘键。
+  if(isAppleTouchDevice){
+    const fromCode=/^(?:Numpad|Digit)([01356789])$/.exec(code);
+    if(fromCode)return "Numpad"+fromCode[1];
+    const fromKey=/^([01356789])$/.exec(key);
+    if(fromKey)return "Numpad"+fromKey[1];
+    const kc=Number(e.keyCode||e.which)||0;
+    if((kc>=48&&kc<=57)||(kc>=96&&kc<=105)){
+      const n=kc>=96?kc-96:kc-48;
+      if([0,1,3,5,6,7,8,9].includes(n))return "Numpad"+n;
     }
-    return e.code;
   }
-  if(e.key?.toLowerCase()==="q")return "KeyQ";
-  if(e.key?.toLowerCase()==="w")return "KeyW";
-  const kc=e.keyCode||e.which||0;
-  const byKeyCode={
-    96:"Numpad0",97:"Numpad1",99:"Numpad3",101:"Numpad5",102:"Numpad6",103:"Numpad7",104:"Numpad8",105:"Numpad9",
-    37:"ArrowLeft",39:"ArrowRight",38:"ArrowUp",40:"ArrowDown",32:"Space"
-  };
-  if(byKeyCode[kc])return byKeyCode[kc];
-  if(e.key==="ArrowLeft")return "ArrowLeft";
-  if(e.key==="ArrowRight")return "ArrowRight";
-  if(e.key==="ArrowUp")return "ArrowUp";
-  if(e.key==="ArrowDown")return "ArrowDown";
-  if(e.key===" "||e.key==="Spacebar")return "Space";
-
-  // 只有苹果触屏设备的隐藏桥接输入框中，才把普通数字当作小键盘数字。
-  if(isAppleTouchDevice && keyboardBridge && e.target===keyboardBridge){
-    if(e.key==="0")return "Numpad0";
-    if(e.key==="1")return "Numpad1";
-    if(e.key==="3")return "Numpad3";
-    if(e.key==="5")return "Numpad5";
-    if(e.key==="6")return "Numpad6";
-    if(e.key==="7")return "Numpad7";
-    if(e.key==="8")return "Numpad8";
-    if(e.key==="9")return "Numpad9";
-  }
-  return "";
+  if(/^Numpad[01356789]$/.test(code))return code;
+  if(code==="KeyQ"||key.toLowerCase()==="q")return "KeyQ";
+  if(code==="KeyW"||key.toLowerCase()==="w")return "KeyW";
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(code))return code;
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(key))return key;
+  if(code==="Space"||key===" "||key==="Spacebar")return "Space";
+  const kc=Number(e.keyCode||e.which)||0;
+  const byKeyCode={96:"Numpad0",97:"Numpad1",99:"Numpad3",101:"Numpad5",102:"Numpad6",103:"Numpad7",104:"Numpad8",105:"Numpad9",37:"ArrowLeft",39:"ArrowRight",38:"ArrowUp",40:"ArrowDown",32:"Space"};
+  return byKeyCode[kc]||"";
 }
 
 function handleHardwareShortcut(e){
@@ -4647,7 +4687,10 @@ function handleHardwareShortcut(e){
 
   // 普通输入框内不触发快捷键；隐藏桥接输入框除外。
   if(!(isAppleTouchDevice && keyboardBridge && target===keyboardBridge) && isRealEditor(target))return;
-  if(e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || subtitleSelectionActive())return;
+  if(e.isComposing || e.ctrlKey || e.metaKey || e.altKey || subtitleSelectionActive())return;
+  // 过滤长按自动重复：避免 iPhone Safari 被同一按键触发大量视频 seek。
+  // 快速独立按下的 keydown 仍正常执行。
+  if(e.repeat)return;
 
   const code=normalizeShortcutCode(e);
   const actions={
@@ -4673,6 +4716,9 @@ function handleHardwareShortcut(e){
   e.preventDefault();
   if(isAppleTouchDevice)e.stopPropagation();
   action();
+  if(isAppleTouchDevice && !isRealEditor(document.activeElement)){
+    setTimeout(()=>focusKeyboardBridge(),80);
+  }
   const status=document.getElementById("keyboardHelpStatus");
   if(status)status.textContent="⌨️ 已收到按键："+code+"。快捷键工作正常。";
 
@@ -4684,7 +4730,9 @@ function handleHardwareShortcut(e){
   }
 }
 
-document.addEventListener("keydown",handleHardwareShortcut,true);
+// 在 window 捕获阶段接收按键：即使焦点落在视频/普通按钮上也尽量可用。
+// 每个 keydown 只处理一次，不在 document 再次绑定，避免双触发。
+window.addEventListener("keydown",handleHardwareShortcut,true);
 
 
 // 原生播放器 timeupdate 作为第二道边界保护；后台/蓝牙播放时也有效。
