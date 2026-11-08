@@ -19,8 +19,8 @@ h1{font-size:24px;margin:8px 0 4px}
 .card-collapse-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:0 0 8px;background:transparent;color:#222;border:0;border-radius:0;text-align:left;font-size:15px;cursor:pointer}
 .card-collapse-toggle .triangle{display:inline-block;width:14px;font-size:13px;line-height:1;transition:transform .15s ease}
 .card-collapse-toggle .collapse-title{font-weight:700;min-width:0;overflow-wrap:anywhere}
-.card.collapsed>.card-collapse-toggle{padding-bottom:0}
-.card.collapsed>.card-collapse-toggle .triangle{transform:rotate(-90deg)}
+.card.collapsed>.card-module-bar>.card-collapse-toggle{padding-bottom:0}
+.card.collapsed>.card-module-bar>.card-collapse-toggle .triangle{transform:rotate(-90deg)}
 .card.collapsed>.collapsible-content{display:none!important}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .play-settings-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end}
@@ -143,25 +143,27 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   padding-bottom:22px !important;
 }
 
-/* 时间字幕播放：中央“继续本句”跨两行；AB三个按钮等宽等高 */
+/* 时间字幕播放：上一句/播放本句/下一句；快退/播放暂停/快进；分割/合并。 */
 .time-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:88px 88px;gap:8px;margin-top:10px}
-.time-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3}
-#playCurrent{grid-column:2;grid-row:1 / span 2}
-#prev{grid-column:1;grid-row:1}#next{grid-column:3;grid-row:1}
-#cueRewind{grid-column:1;grid-row:2}#cueForward{grid-column:3;grid-row:2}
-.ab-play-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
-.ab-play-grid button{width:100%;min-width:0;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
-/* 谐音区域与当前字幕显示区域等高 */
-.phonetic-area{margin-top:12px}
-.phonetic-area b{display:block;margin-bottom:8px}
-#phoneticInput{display:block;width:100%;height:144px;min-height:144px;resize:vertical;font-size:22px;line-height:1.35;padding:12px 8px;white-space:pre-wrap}
+.time-play-grid button{width:100%;min-width:0;height:88px;min-height:88px;padding:10px 4px;line-height:1.3;overflow-wrap:anywhere}
+#prev{grid-column:1;grid-row:1}#playCurrent{grid-column:2;grid-row:1}#next{grid-column:3;grid-row:1}
+#cueRewind{grid-column:1;grid-row:2}#cueTogglePlay{grid-column:2;grid-row:2}#cueForward{grid-column:3;grid-row:2}
+.cue-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.cue-edit-grid button{width:100%;min-width:0;min-height:64px;padding:10px 4px;line-height:1.3}
+/* 模块只通过 CSS order 排序，不移动 video/iframe DOM，避免 Safari 播放中断。 */
+.wrap{display:flex;flex-direction:column}
+.wrap>.card{flex:none}
+.card-module-bar{display:flex;align-items:center;gap:8px}
+.card-module-bar>.card-collapse-toggle{width:auto;flex:1;min-width:0;margin:0}
+.card-move-up{flex:0 0 40px;width:40px;height:36px;min-height:36px;padding:0;border-radius:9px;background:#eee;color:#222;font-size:23px;line-height:1}
+.card-move-up:disabled{opacity:.35}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 <div class="wrap">
 <h1>视频字幕编辑器 <span id="buildTime" style="font-size:16px;color:#888;font-weight:500">09-13 14:26</span></h1>
-<div class="version">本机版 · 字幕记录删除管理</div>
+<div class="version">本机版 · 字幕记录删除管理 · 分割合并 · 模块上移</div>
 
 <div class="card">
   <b>视频与字幕绑定</b>
@@ -217,7 +219,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
-  <div class="phonetic-area"><b>谐音输入框</b><textarea id="phoneticInput" placeholder="输入当前字幕的谐音，切换句子自动保存和恢复" aria-label="当前字幕谐音"></textarea></div>
 
 </div>
 
@@ -237,18 +238,14 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button class="needsPlayer" id="playCurrent">继续本句</button>
     <button class="secondary needsPlayer" id="next">下一句</button>
     <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
+    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
     <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
   </div>
-</div>
-
-<div class="card" id="abLoopCard">
-  <b>AB 循环</b>
-  <div class="ab-play-grid">
-    <button type="button" class="secondary needsPlayer" id="abMarkA">A · 设置起点</button>
-    <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
-    <button type="button" class="secondary needsPlayer" id="abMarkB">B · 设置终点</button>
+  <div class="cue-edit-grid">
+    <button type="button" class="secondary" id="splitCurrentCue">分割（Q）</button>
+    <button type="button" class="secondary" id="mergeNextCue">与下一句合并（W）</button>
   </div>
-  <div id="abLoopStatus" class="status">点击 A 设置起点，再点击 B 设置终点并开始循环；再次点击可取消。</div>
+  <div id="cueEditStatus" class="status" aria-live="polite"></div>
 </div>
 
  <div class="card">
@@ -613,12 +610,28 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 "use strict";
 
 const COLLAPSED_CARD_KEY="ytCollapsedCards:v1";
+const MODULE_ORDER_KEY="ytModuleUpOrder:v1";
 
 function initCollapsibleCards(){
   let saved={};
   try{saved=JSON.parse(localStorage.getItem(COLLAPSED_CARD_KEY)||"{}")||{};}catch(e){saved={};}
 
   const cards=Array.from(document.querySelectorAll(".wrap > .card"));
+  const initialKeys=cards.map((card,index)=>card.id||"module_"+index);
+  let savedOrder=[];
+  try{const x=JSON.parse(localStorage.getItem(MODULE_ORDER_KEY)||"[]");if(Array.isArray(x))savedOrder=x;}catch(e){}
+  let order=[...savedOrder.filter(key=>initialKeys.includes(key)),...initialKeys.filter(key=>!savedOrder.includes(key))];
+  // 旧配置中可能有重复项，保持每个模块仅出现一次。
+  order=[...new Set(order)];
+  function paintModuleOrder(){
+    cards.forEach((card,index)=>{
+      const key=initialKeys[index];
+      const position=order.indexOf(key);
+      card.style.order=String(position+1);
+      const up=card.querySelector(":scope > .card-module-bar > .card-move-up");
+      if(up)up.disabled=position<=0;
+    });
+  }
   cards.forEach((card,index)=>{
     if(card.querySelector(":scope > .card-collapse-toggle"))return;
 
@@ -652,7 +665,25 @@ function initCollapsibleCards(){
     const content=document.createElement("div");
     content.className="collapsible-content";
     while(card.firstChild)content.appendChild(card.firstChild);
-    card.append(toggle,content);
+    const bar=document.createElement("div");
+    bar.className="card-module-bar";
+    const up=document.createElement("button");
+    up.type="button";
+    up.className="card-move-up";
+    up.textContent="↑";
+    up.title="将此模块上移一格";
+    up.setAttribute("aria-label",title+" 上移");
+    up.addEventListener("click",event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      const key=initialKeys[index],position=order.indexOf(key);
+      if(position<=0)return;
+      [order[position-1],order[position]]=[order[position],order[position-1]];
+      paintModuleOrder();
+      try{localStorage.setItem(MODULE_ORDER_KEY,JSON.stringify(order));}catch(e){}
+    });
+    bar.append(toggle,up);
+    card.append(bar,content);
 
     // Avoid duplicating a heading that is now represented by the collapse title.
     const originalHeading=content.firstElementChild;
@@ -677,6 +708,7 @@ function initCollapsibleCards(){
       try{localStorage.setItem(COLLAPSED_CARD_KEY,JSON.stringify(saved));}catch(e){}
     });
   });
+  paintModuleOrder();
 }
 
 document.addEventListener("DOMContentLoaded",initCollapsibleCards);
@@ -718,29 +750,6 @@ let sentenceAutoTimer = null;
 let sentenceStartTimer = null;
 let sentenceRunPlayCount = 0;
 let monitorTimer = null;
-let abStart=null,abEnd=null,abLoopActive=false;
-function refreshAbLoop(){
-  const a=document.getElementById("abMarkA"),b=document.getElementById("abMarkB"),status=document.getElementById("abLoopStatus");
-  if(!a||!b)return;
-  a.textContent=abStart===null?"A · 设置起点":"A · "+fmtSegmentTime(abStart)+" ✓";
-  b.textContent=abEnd===null?"B · 设置终点":"B · "+fmtSegmentTime(abEnd)+" ✓";
-  a.classList.toggle("secondary",abStart===null);
-  b.classList.toggle("secondary",abEnd===null);
-  status.textContent=abLoopActive?"AB 循环中：到 B 自动返回 A；点击 A 或 B 可取消对应标记。":(abStart===null?"点击 A 设置起点，再点击 B 设置终点并开始循环。":abEnd===null?"已设置 A，请播放到终点后点击 B。":"AB 循环未启动");
-}
-document.getElementById("abMarkA").addEventListener("click",()=>{
-  if(abStart!==null){abStart=null;abEnd=null;abLoopActive=false;}
-  else{abStart=now();abEnd=null;abLoopActive=false;cancelSentencePlay();cancelSegmentPlay();}
-  refreshAbLoop();
-});
-document.getElementById("abMarkB").addEventListener("click",()=>{
-  if(abEnd!==null){abEnd=null;abLoopActive=false;}
-  else if(abStart===null){document.getElementById("abLoopStatus").textContent="请先点击 A 设置起点";return;}
-  else if(now()<=abStart+0.05){document.getElementById("abLoopStatus").textContent="B 必须晚于 A，请播放到后面再设置";return;}
-  else{abEnd=now();abLoopActive=true;cancelSentencePlay();cancelSegmentPlay();seek(abStart);play();}
-  refreshAbLoop();
-});
-
 let suppressAutoUntil = 0;
 let lastMonitoredTime = null;
 let lastMonitorWallTime = 0;
@@ -3298,30 +3307,7 @@ window.addEventListener("resize",scheduleSubtitleFit);
 if(document.fonts?.ready)document.fonts.ready.then(scheduleSubtitleFit);
 scheduleSubtitleFit();
 
-// 谐音按视频及字幕时间单独保存，切换字幕自动恢复。
-const PHONETIC_STORAGE_KEY="ytPhoneticNotes:v1";
-let phoneticLastKey="";
-function phoneticKey(){
-  const cue=subs[current];
-  if(!cue)return "";
-  return (currentSourceKey||"未命名视频")+"|"+(currentSubtitleName||"字幕")+"|"+Number(cue.start).toFixed(3)+"|"+Number(cue.end).toFixed(3);
-}
-function readPhoneticNotes(){try{return JSON.parse(localStorage.getItem(PHONETIC_STORAGE_KEY)||"{}")||{};}catch(e){return {};}}
-function savePhoneticNote(){
-  if(!phoneticLastKey)return;
-  const notes=readPhoneticNotes(),value=document.getElementById("phoneticInput").value;
-  if(value)notes[phoneticLastKey]=value;else delete notes[phoneticLastKey];
-  try{localStorage.setItem(PHONETIC_STORAGE_KEY,JSON.stringify(notes));}catch(e){}
-}
-document.getElementById("phoneticInput").addEventListener("input",savePhoneticNote);
-function syncPhoneticNote(){
-  const key=phoneticKey();
-  if(key===phoneticLastKey)return;
-  phoneticLastKey=key;
-  document.getElementById("phoneticInput").value=key?(readPhoneticNotes()[key]||""):"";
-}
 function updateTop(){
-  syncPhoneticNote();
   updateSegmentPlayCount();
   $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
   const subtitleEl=$("#currentSubtitle");
@@ -3679,6 +3665,68 @@ $("#playCurrent").onclick=function(){
   toggleSelectedSentencePlayback();
 };
 
+// 记录字幕编辑框光标：在手机上点击分割按钮后，textarea 会失去焦点。
+let lastCueCaret={index:-1,start:-1};
+function rememberCueCaret(e){
+  const el=e.target;
+  if(!el || !el.matches || !el.matches("#list textarea[data-text]"))return;
+  lastCueCaret={index:Number(el.dataset.text),start:Number(el.selectionStart)};
+}
+for(const type of ["focusin","click","keyup","select","input","touchend"]){
+  document.getElementById("list").addEventListener(type,rememberCueCaret);
+}
+function cueEditMessage(message){
+  $("#cueEditStatus").textContent=message;
+}
+function splitCueAtCurrent(){
+  if(!subs.length||!subs[current]){cueEditMessage("请先导入字幕");return;}
+  const i=current,old=subs[i];
+  const duration=Number(old.end)-Number(old.start);
+  if(!Number.isFinite(duration)||duration<0.16){cueEditMessage("本句时间太短，无法分割");return;}
+  const text=String(old.text||"");
+  let cut=lastCueCaret.index===i?lastCueCaret.start:-1;
+  if(!(cut>0&&cut<text.length)){
+    // 未指定光标时，优先选择接近中间的词间空格，否则按字符中点分割。
+    const mid=Math.floor(text.length/2);
+    const breaks=[...text.matchAll(/[\s，。！？,.!?;；]+/g)].map(m=>m.index+m[0].length);
+    cut=breaks.filter(x=>x>0&&x<text.length).sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0]??mid;
+  }
+  const left=text.slice(0,cut).trimEnd(),right=text.slice(cut).trimStart();
+  if(text.trim()&&(!left||!right)){
+    cueEditMessage("请在下方『编辑字幕』中，把光标放在要分割的文字中间，再点分割");return;
+  }
+  const playhead=playerReady?now():NaN;
+  let time=playhead>old.start+0.08&&playhead<old.end-0.08
+    ?playhead
+    :old.start+duration*(text.length?cut/text.length:0.5);
+  time=Math.round(Math.min(old.end-0.08,Math.max(old.start+0.08,time))*1000)/1000;
+  if(!(time>old.start&&time<old.end)){cueEditMessage("时间范围无效，无法分割");return;}
+  cancelSentencePlay();cancelSegmentPlay();pause();
+  subs.splice(i,1,
+    {...old,end:time,text:left,playCount:0},
+    {...old,start:time,text:right,playCount:0}
+  );
+  current=i;
+  lastCueCaret={index:-1,start:-1};
+  renderAll();saveSubtitlesNow();
+  cueEditMessage(`第 ${i+1} 句已分成两句，分割时间 ${fmt(time)}；已提交自动保存`);
+}
+function mergeCueWithNext(){
+  if(!subs.length||!subs[current]){cueEditMessage("请先导入字幕");return;}
+  if(current>=subs.length-1){cueEditMessage("已经是最后一句，没有下一句可以合并");return;}
+  const i=current,a=subs[i],b=subs[i+1];
+  cancelSentencePlay();cancelSegmentPlay();pause();
+  const first=String(a.text||"").trimEnd(),second=String(b.text||"").trimStart();
+  const combined=first&&second?first+"\n"+second:first+second;
+  subs.splice(i,2,{...a,end:Math.max(a.end,b.end),text:combined,playCount:0});
+  current=i;
+  lastCueCaret={index:-1,start:-1};
+  renderAll();saveSubtitlesNow();
+  cueEditMessage(`已将第 ${i+1} 句与下一句合并；已提交自动保存`);
+}
+$("#splitCurrentCue").addEventListener("click",splitCueAtCurrent);
+$("#mergeNextCue").addEventListener("click",mergeCueWithNext);
+
 function adjustPlayerVolume(delta){
   if(!playerReady||!player)return;
   let volume=100;
@@ -3878,6 +3926,8 @@ function handleHardwareShortcut(e){
     Numpad7:()=>$("#prev").click(),
     Numpad8:()=>$("#playCurrent").click(),
     Numpad9:()=>$("#next").click(),
+    KeyQ:()=>$("#splitCurrentCue").click(),
+    KeyW:()=>$("#mergeNextCue").click(),
     ArrowUp:()=>adjustPlayerVolume(2),
     ArrowDown:()=>adjustPlayerVolume(-2)
   };
@@ -3906,12 +3956,6 @@ function startMonitor(){
     updateRemotePlaybackState();
     refreshPreciseTime();
     const t=now();
-    if(abLoopActive && abStart!==null && abEnd!==null && t>=abEnd-0.035){
-      seek(abStart);
-      if(!isPlaying())play();
-      lastMonitoredTime=abStart;
-      return;
-    }
     const wallNow=Date.now();
     const previousTime=lastMonitoredTime;
     const elapsed=lastMonitorWallTime ? (wallNow-lastMonitorWallTime)/1000 : 0;
