@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light"><title>字幕播放器 · Safari 精简版</title>
 <style>
-*{box-sizing:border-box}html{scroll-behavior:auto}body{margin:0;background:#f4f5f7;color:#1c1c1e;font:16px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.wrap{max-width:780px;margin:auto;padding:12px 12px 60px}h1{font-size:21px;margin:5px 0 6px}.hint{font-size:12px;color:#666;line-height:1.5}.card{background:#fff;border-radius:15px;margin:11px 0;padding:13px;box-shadow:0 1px 3px #0000000a}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1;min-width:0}.filebtn,button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;min-height:45px;padding:9px 7px;background:#e9e9ec;color:#111;font:inherit;text-align:center;cursor:pointer}.primary{background:#2563eb;color:#fff}button:disabled{opacity:.5}.filebtn input{display:none}video{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;border-radius:10px}#cueText{white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:21px;line-height:1.5;min-height:78px;padding:12px 4px;font-weight:600}#cueMeta,#status,#keyboardStatus{font-size:13px;color:#666;min-height:20px}#cueMeta{text-align:center}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.grid3 button{min-height:54px}.grid4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}label.field{display:block;font-size:13px;color:#555}select,input[type=text],input[type=number],textarea{display:block;width:100%;border:1px solid #d6d6da;border-radius:9px;background:#fff;color:#111;padding:9px;font:inherit;margin-top:5px;min-width:0}select{height:43px}.details summary{font-weight:600;cursor:pointer;padding:4px 0}.details[open] summary{margin-bottom:10px}textarea{min-height:105px;resize:vertical;line-height:1.5}.note{font-size:12px;color:#777;margin-top:7px}#keyboardActivate{min-height:38px;font-size:13px}#keyboardActivate:focus{outline:2px solid #2563eb;outline-offset:2px}.foot{font-size:12px;color:#666;line-height:1.6}#status{white-space:pre-wrap}#cueText .zh{display:block;color:#555;font-weight:400;font-size:19px;margin-top:3px}
+*{box-sizing:border-box}html{scroll-behavior:auto}body{margin:0;background:#f4f5f7;color:#1c1c1e;font:16px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.wrap{max-width:780px;margin:auto;padding:12px 12px 60px}h1{font-size:21px;margin:5px 0 6px}.hint{font-size:12px;color:#666;line-height:1.5}.card{background:#fff;border-radius:15px;margin:11px 0;padding:13px;box-shadow:0 1px 3px #0000000a}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1;min-width:0}.filebtn,button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;min-height:45px;padding:9px 7px;background:#e9e9ec;color:#111;font:inherit;text-align:center;cursor:pointer}.primary{background:#2563eb;color:#fff}button:disabled{opacity:.5}.filebtn{position:relative;overflow:hidden}.filebtn input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;margin:0;padding:0}video{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;border-radius:10px}#cueText{white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:21px;line-height:1.5;min-height:78px;padding:12px 4px;font-weight:600}#cueMeta,#status,#keyboardStatus{font-size:13px;color:#666;min-height:20px}#cueMeta{text-align:center}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.grid3 button{min-height:54px}.grid4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}label.field{display:block;font-size:13px;color:#555}select,input[type=text],input[type=number],textarea{display:block;width:100%;border:1px solid #d6d6da;border-radius:9px;background:#fff;color:#111;padding:9px;font:inherit;margin-top:5px;min-width:0}select{height:43px}.details summary{font-weight:600;cursor:pointer;padding:4px 0}.details[open] summary{margin-bottom:10px}textarea{min-height:105px;resize:vertical;line-height:1.5}.note{font-size:12px;color:#777;margin-top:7px}#keyboardActivate{min-height:38px;font-size:13px}#keyboardActivate:focus{outline:2px solid #2563eb;outline-offset:2px}.foot{font-size:12px;color:#666;line-height:1.6}#status{white-space:pre-wrap}#cueText .zh{display:block;color:#555;font-weight:400;font-size:19px;margin-top:3px}
 
 /* 前两排各三键，最后一排两键：每一排平均分配，按钮高度一致。 */
 .play-controls{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
@@ -23,10 +23,10 @@
 .card.module-collapsed .module-move-bar{margin-bottom:0}
 .card.module-collapsed .collapse-arrow{transform:rotate(-90deg)}
 </style></head><body><main class="wrap">
-<h1>视频字幕播放器 <small style="font-size:12px;color:#777">Safari 精简编辑版</small></h1>
+<h1>视频字幕播放器 <small style="font-size:12px;color:#777">Safari 精简编辑版 · 字幕读取修复</small></h1>
 <div class="hint">只保留本地视频、SRT 字幕、本句播放、分割合并、编辑和小键盘。模块标题点一下可收起／展开，不用的模块可以隐藏内容；↑ ↓ 调整位置并自动记忆。</div>
-<section class="card"><div class="row"><label class="filebtn primary">① 选择本地视频<input id="videoFile" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mp3,.m4a,audio/*"></label><label class="filebtn">② 导入 SRT / VTT<input id="subFile" type="file" accept=".srt,.vtt,text/plain"></label></div><p class="hint" id="fileInfo">本地视频需每次重新选择；字幕不会自动与错误的视频绑定。</p><video id="video" controls playsinline webkit-playsinline preload="metadata"></video><div id="status" role="status">请选择本地视频。</div></section>
-<section class="card"><div id="cueText">导入字幕后显示在这里</div><div id="cueMeta">0 / 0</div></section>
+<section class="card"><div class="row"><label class="filebtn primary">① 选择本地视频<input id="videoFile" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mp3,.m4a,audio/*"></label><label class="filebtn">② 导入 SRT / VTT<input id="subFile" type="file" accept="*/*"></label></div><p class="hint" id="fileInfo">本地视频需每次重新选择；字幕不会自动与错误的视频绑定。</p><video id="video" controls playsinline webkit-playsinline preload="metadata"></video><div id="status" role="status">请选择本地视频。</div></section>
+<section class="card"><div id="cueText">导入字幕后显示在这里</div><div id="cueMeta">0 / 0</div><div id="subtitleStatus" class="hint" role="status" aria-live="polite" style="text-align:center;margin-top:5px">请选择 SRT / VTT 字幕文件</div></section>
 <section class="card"><div class="play-controls"><button id="prev">上一句 7</button><button class="primary" id="playCue">播放本句 8</button><button id="next">下一句 9</button><button id="back">⏪ 快退 1</button><button id="toggle">播放／暂停</button><button id="ahead">快进 3 ⏩</button><button id="split" title="先在字幕编辑中把光标放在分割位置">分割（Q）</button><button id="merge">与下一句合并（W）</button></div></section>
 <section class="card"><b>播放设置（自动记忆）</b><div class="grid4" style="margin-top:10px"><label class="field">快退时间<select id="rewindStep"></select></label><label class="field">快进时间<select id="forwardStep"></select></label><label class="field">播放速度<select id="speed"></select></label><label class="field">播放模式<select id="mode"><option value="single">本句播放</option><option value="continuous">连续播放</option></select></label><label class="field">每句播放次数<select id="times"></select></label><label class="field">播放间隔<select id="interval"></select></label></div></section>
 <section class="card"><div class="row"><button id="keyboardActivate" type="button">⌨️ 激活小键盘</button><div id="keyboardStatus">7/9 上下句 · 8 本句 · 1/3 快退快进 · 5/6 变速 · 空格暂停</div></div><p class="note">不使用隐藏输入框，不会出现蓝色闪烁光标。只有点击「激活小键盘」时才主动设置焦点。</p></section>
@@ -54,7 +54,49 @@ let cues=[],idx=0,objectUrl='',hasVideo=false,seekTimer=0,seekTarget=null,seekAu
 function status(s){$('status').textContent=s}
 function fmt(t){t=Math.max(0,Number(t)||0);const ms=Math.round(t*1000),h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`}
 function parseTime(s){const a=String(s).trim().replace(',','.').split(':');if(a.length<2||a.length>3)return NaN;const nums=a.map(Number);if(nums.some(n=>!Number.isFinite(n)))return NaN;return a.length===3?nums[0]*3600+nums[1]*60+nums[2]:nums[0]*60+nums[1]}
-function parseSrt(raw){const blocks=String(raw).replace(/^\uFEFF/,'').replace(/\r/g,'').replace(/^WEBVTT[^\n]*\n/,'').split(/\n\s*\n/),out=[];for(const b of blocks){const lines=b.split('\n'),i=lines.findIndex(x=>x.includes('-->'));if(i<0)continue;const a=lines[i].split(/\s*-->\s*/);const start=parseTime(a[0]),end=parseTime((a[1]||'').split(/\s+/)[0]);if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)continue;out.push({start,end,text:lines.slice(i+1).join('\n').trim()})}return out.sort((a,b)=>a.start-b.start)}
+function parseSrt(raw){
+  // 兼容 iPhone 文件 App 导出的 SRT/VTT、UTF-8/GB18030、带 BOM、无空行的字幕。
+  let txt=String(raw||'').replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').replace(/\u0000/g,'');
+  txt=txt.replace(/^WEBVTT[^\n]*\n/i,'').replace(/^\s*NOTE[^\n]*\n(?:[^\n]*\n)*?\n/gm,'');
+  const lines=txt.split('\n'),out=[];
+  const timePattern=/^\s*((?:\d{1,3}:)?\d{1,2}:\d{2}[.,]\d{1,3}|(?:\d{1,3}:)?\d{1,2}:\d{2})\s*-->\s*((?:\d{1,3}:)?\d{1,2}:\d{2}[.,]\d{1,3}|(?:\d{1,3}:)?\d{1,2}:\d{2})(?:\s+.*)?$/;
+  for(let i=0;i<lines.length;i++){
+    const m=lines[i].match(timePattern);if(!m)continue;
+    const a=parseTime(m[1]),b=parseTime(m[2]);if(!Number.isFinite(a)||!Number.isFinite(b)||b<=a)continue;
+    const content=[];
+    for(let j=i+1;j<lines.length;j++){
+      if(timePattern.test(lines[j])){i=j-1;break}
+      if(/^\s*$/.test(lines[j])){i=j;break}
+      // 没有空行时，下一句序号不应当被当成字幕正文。
+      if(/^\s*\d+\s*$/.test(lines[j])&&j+1<lines.length&&timePattern.test(lines[j+1])){i=j;break}
+      content.push(lines[j]);
+      if(j===lines.length-1)i=j;
+    }
+    out.push({start:a,end:b,text:content.join('\n').trim()});
+  }
+  return out.sort((a,b)=>a.start-b.start);
+}
+function readSubtitleFile(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(reader.error||new Error('Safari 无法读取文件'));
+    reader.onload=()=>{
+      try{
+        const bytes=new Uint8Array(reader.result);
+        let charset='utf-8';
+        if(bytes.length>=2&&bytes[0]===255&&bytes[1]===254)charset='utf-16le';
+        else if(bytes.length>=2&&bytes[0]===254&&bytes[1]===255)charset='utf-16be';
+        let text=new TextDecoder(charset).decode(bytes);
+        // 对常见的 GBK/GB18030 中文字幕做回退（Safari 支持 GB18030 解码）。
+        if(charset==='utf-8'&&text.includes('\uFFFD')){
+          try{const gb=new TextDecoder('gb18030').decode(bytes);if((gb.match(/\uFFFD/g)||[]).length<(text.match(/\uFFFD/g)||[]).length)text=gb}catch(_){}
+        }
+        resolve(text);
+      }catch(e){reject(e)}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
 function refreshCue(){if(!cues.length){$('cueText').textContent='请导入字幕';$('cueMeta').textContent='0 / 0';$('startEdit').value=$('endEdit').value=$('textEdit').value='';return}idx=Math.max(0,Math.min(cues.length-1,idx));const c=cues[idx];$('cueText').textContent=c.text||'(空字幕)';$('cueMeta').textContent=`${idx+1} / ${cues.length} · ${fmt(c.start)} → ${fmt(c.end)}`;$('startEdit').value=fmt(c.start);$('endEdit').value=fmt(c.end);$('textEdit').value=c.text}
 function stopSentence(){activeSentence=false;played=0;clearTimeout(intervalTimer)}
 function playSafe(){if(!hasVideo)return status('请先选择视频');pendingAutoPlay=false;speedApply();const promise=v.play();if(promise&&promise.catch)promise.catch(e=>status('播放被 Safari 阻止：'+(e?.message||'请点视频自带播放键')))}
@@ -68,7 +110,7 @@ function playCue(){if(!cues.length)return status('请先导入字幕');if(!hasVi
 function doSeek(delta){if(!hasVideo)return status('请先选择视频');stopSentence();pendingAutoPlay=true;if(v.paused)playSafe();const base=seekTarget!==null?seekTarget:v.currentTime;queueSeek(base+delta,true,380)}
 function toggle(){if(!hasVideo)return status('请先选择视频');if(!v.paused){v.pause();stopSentence()}else playSafe()}
 $('videoFile').addEventListener('change',e=>{const file=e.target.files?.[0];if(!file)return;clearTimeout(seekTimer);stopSentence();pendingAutoPlay=false;seekTarget=null;hasVideo=false;v.pause();const oldUrl=objectUrl;objectUrl=URL.createObjectURL(file);v.src=objectUrl;v.load();if(oldUrl)URL.revokeObjectURL(oldUrl);hasVideo=true;speedApply();$('fileInfo').textContent=`视频：${file.name}（${(file.size/1048576).toFixed(1)} MB）`;status('视频已加载，请点播放。连续快速按键时，停止按键后约 0.4 秒才定位。');e.target.value=''});
-$('subFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{const parsed=parseSrt(await f.text());if(!parsed.length)throw Error('未识别到有效时间轴');cues=parsed;idx=0;stopSentence();refreshCue();status(`已导入 ${cues.length} 条字幕：${f.name}`)}catch(err){status('导入字幕失败：'+err.message)}e.target.value=''});
+$('subFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;const subStatus=$('subtitleStatus');subStatus.textContent='正在读取：'+f.name;try{const raw=await readSubtitleFile(f);const parsed=parseSrt(raw);if(!parsed.length)throw Error('未找到有效时间轴，请检查是否为 SRT / VTT 文件');cues=parsed;idx=0;stopSentence();refreshCue();const msg=`成功读取 ${cues.length} 条字幕：${f.name}`;subStatus.textContent=msg;status(msg)}catch(err){const msg='字幕读取失败：'+(err?.message||'未知错误');subStatus.textContent=msg;status(msg)}finally{e.target.value=''}});
 $('prev').onclick=()=>goCue(idx-1);$('next').onclick=()=>goCue(idx+1);$('playCue').onclick=playCue;$('back').onclick=()=>doSeek(-(Number($('rewindStep').value)||5));$('ahead').onclick=()=>doSeek(Number($('forwardStep').value)||5);$('toggle').onclick=toggle;
 function sentenceEnded(){if(!activeSentence||!cues.length||seekTarget!==null||v.seeking)return;const c=cues[idx];if(v.currentTime<c.end-.035)return;v.pause();played++;const times=$('times').value,limit=times==='infinite'?Infinity:Math.max(1,Number(times)||1);if(played<limit){intervalTimer=setTimeout(()=>{if(activeSentence){pendingAutoPlay=true;queueSeek(c.start,true,40)}},Number($('interval').value)*1000);return}if($('mode').value==='continuous'&&idx<cues.length-1){intervalTimer=setTimeout(()=>{if(activeSentence){idx++;played=0;refreshCue();pendingAutoPlay=true;queueSeek(cues[idx].start,true,40)}},Number($('interval').value)*1000)}else{stopSentence()}}
 v.addEventListener('timeupdate',()=>{sentenceEnded()});
