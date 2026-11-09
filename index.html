@@ -241,6 +241,10 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button type="button" class="secondary" id="splitCurrentCue">分割（Q）</button>
     <button type="button" class="secondary" id="mergeNextCue">与下一句合并（W）</button>
   </div>
+  <div class="cue-edit-grid">
+    <button type="button" id="finishCueEdit">完成</button>
+    <button type="button" class="secondary" id="undoCueEdit">撤销</button>
+  </div>
   <div id="cueEditStatus" class="status" aria-live="polite"></div>
 </div>
 
@@ -735,6 +739,8 @@ let lockedSentenceIndex = -1;
 let sentenceAutoTimer = null;
 let sentenceStartTimer = null;
 let sentenceRunPlayCount = 0;
+let sentencePlaybackGeneration=0;
+let sentenceEndHandling=false;
 let monitorTimer = null;
 let suppressAutoUntil = 0;
 let lastMonitoredTime = null;
@@ -3425,6 +3431,8 @@ window.removeSub=function(i){
 };
 
 function cancelSentencePlay(){
+  sentencePlaybackGeneration++;
+  sentenceEndHandling=false;
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
   if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
   playSentenceMode=false;
@@ -3521,6 +3529,8 @@ $("#insertNewCue").onclick=function(){
 
 function playSelectedSentence(resetRunCount=true){
   if(!playerReady||!subs.length)return;
+  const generation=++sentencePlaybackGeneration;
+  sentenceEndHandling=false;
   if(resetRunCount)sentenceRunPlayCount=0;
   playbackCountMode="sentence";
   updateSegmentPlayCount();
@@ -3538,6 +3548,7 @@ function playSelectedSentence(resetRunCount=true){
     : `🔒 已锁定第${lockedSentenceIndex+1}句 · 播放本句不会自动换句`;
   sentenceStartTimer=setTimeout(function(){
     sentenceStartTimer=null;
+    if(generation!==sentencePlaybackGeneration||!sentenceCaptionLocked||!subs[lockedSentenceIndex])return;
     playSentenceMode=true;
     play();
     setTimeout(updatePlayCurrentButtonState,60);
@@ -3582,6 +3593,7 @@ function toggleSelectedSentencePlayback(){
 }
 
 function scheduleNextSentencePlay(finishedIndex){
+  const generation=sentencePlaybackGeneration;
   const interval=Math.max(0,Number($("#sentenceAutoInterval").value)||0);
   const mode=$("#sentenceAutoMode").value;
   const timesValue=$("#sentencePlayTimes").value;
@@ -3594,6 +3606,8 @@ function scheduleNextSentencePlay(finishedIndex){
 
   if(!infinite && sentenceRunPlayCount>=targetTimes){
     if(mode==="single"){
+      playSentenceMode=false;
+      sentenceEndHandling=false;
       sentenceCaptionLocked=true;
       lockedSentenceIndex=finishedIndex;
       $("#sentenceStatus").textContent=`✅ 第${finishedIndex+1}句已播放${sentenceRunPlayCount}遍 · 已停止`;
@@ -3624,6 +3638,8 @@ function scheduleNextSentencePlay(finishedIndex){
 
   sentenceAutoTimer=setTimeout(()=>{
     sentenceAutoTimer=null;
+    if(generation!==sentencePlaybackGeneration)return;
+    sentenceEndHandling=false;
     sentenceCaptionLocked=false;
     lockedSentenceIndex=-1;
     current=targetIndex;
@@ -3660,6 +3676,24 @@ function rememberCueCaret(e){
 for(const type of ["focusin","click","keyup","select","input","touchend"]){
   document.getElementById("list").addEventListener(type,rememberCueCaret);
 }
+const cueEditUndoStack=[];
+function rememberCueEditUndo(){
+  cueEditUndoStack.push({subs:subs.map(x=>({...x})),current});
+  if(cueEditUndoStack.length>20)cueEditUndoStack.shift();
+}
+$("#finishCueEdit").addEventListener("click",()=>{
+  saveSubtitlesNow();
+  cueEditUndoStack.length=0;
+  cueEditMessage("已完成编辑并保存字幕");
+});
+$("#undoCueEdit").addEventListener("click",()=>{
+  const prior=cueEditUndoStack.pop();
+  if(!prior){cueEditMessage("没有可撤销的分割或合并操作");return;}
+  cancelSentencePlay();pause();
+  subs=prior.subs;current=Math.min(prior.current,Math.max(0,subs.length-1));
+  renderAll();saveSubtitlesNow();
+  cueEditMessage("已撤销上一步分割或合并，并保存恢复结果");
+});
 function cueEditMessage(message){
   $("#cueEditStatus").textContent=message;
 }
@@ -3686,6 +3720,7 @@ function splitCueAtCurrent(){
     :old.start+duration*(text.length?cut/text.length:0.5);
   time=Math.round(Math.min(old.end-0.08,Math.max(old.start+0.08,time))*1000)/1000;
   if(!(time>old.start&&time<old.end)){cueEditMessage("时间范围无效，无法分割");return;}
+  rememberCueEditUndo();
   cancelSentencePlay();cancelSegmentPlay();pause();
   subs.splice(i,1,
     {...old,end:time,text:left,playCount:0},
@@ -3694,7 +3729,7 @@ function splitCueAtCurrent(){
   current=i;
   lastCueCaret={index:-1,start:-1};
   renderAll();saveSubtitlesNow();
-  cueEditMessage(`第 ${i+1} 句已分成两句，分割时间 ${fmt(time)}；已提交自动保存`);
+  cueEditMessage(`第 ${i+1} 句已分成两句，分割时间 ${fmt(time)}；可点「撤销」恢复，点「完成」确认`);
 }
 function mergeCueWithNext(){
   if(!subs.length||!subs[current]){cueEditMessage("请先导入字幕");return;}
@@ -3703,11 +3738,12 @@ function mergeCueWithNext(){
   cancelSentencePlay();cancelSegmentPlay();pause();
   const first=String(a.text||"").trimEnd(),second=String(b.text||"").trimStart();
   const combined=first&&second?first+"\n"+second:first+second;
+  rememberCueEditUndo();
   subs.splice(i,2,{...a,end:Math.max(a.end,b.end),text:combined,playCount:0});
   current=i;
   lastCueCaret={index:-1,start:-1};
   renderAll();saveSubtitlesNow();
-  cueEditMessage(`已将第 ${i+1} 句与下一句合并；已提交自动保存`);
+  cueEditMessage(`已将第 ${i+1} 句与下一句合并；可点「撤销」恢复，点「完成」确认`);
 }
 $("#splitCurrentCue").addEventListener("click",splitCueAtCurrent);
 $("#mergeNextCue").addEventListener("click",mergeCueWithNext);
@@ -3980,12 +4016,13 @@ function startMonitor(){
     // 分段播放不依赖字幕；没有导入字幕时也必须按结束点停止。
     if(!subs.length)return;
 
-    if(playSentenceMode && lockedSentenceIndex>=0 && subs[lockedSentenceIndex]){
+    if(playSentenceMode && !sentenceEndHandling && lockedSentenceIndex>=0 && subs[lockedSentenceIndex]){
       const sentence=subs[lockedSentenceIndex];
       if(t>=sentence.end-0.025){
+        sentenceEndHandling=true;
         const finishedIndex=lockedSentenceIndex;
         pause();
-        seekKeepingSentence(sentence.end,finishedIndex);
+        // 到句尾仅暂停，不反复 seek，减少 iPhone Safari 解码冲突。
         sentence.playCount=Math.max(0,Math.floor(Number(sentence.playCount)||0))+1;
         saveSubtitlesNow();
         updateSegmentPlayCount();
