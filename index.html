@@ -3527,6 +3527,21 @@ $("#insertNewCue").onclick=function(){
   $("#newCueStart").value="";$("#newCueEnd").value="";$("#newCueText").value="";
 };
 
+// 明确按“播放本句/上一句/下一句”时，始终以单句模式运行；
+// 防止历史保存的连续播放设置使本句结束后自动跳到下一句。
+function enforceSingleSentenceMode(){
+  const mode=$("#sentenceAutoMode");
+  if(mode && mode.value!=="single"){
+    mode.value="single";
+    localStorage.setItem(SENTENCE_AUTO_MODE_KEY,"single");
+  }
+  if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
+  if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
+  sentencePlaybackGeneration++;
+  sentenceEndHandling=false;
+  $("#sentenceStatus").textContent=sentencePlaySettingSummary();
+}
+
 function playSelectedSentence(resetRunCount=true){
   if(!playerReady||!subs.length)return;
   const generation=++sentencePlaybackGeneration;
@@ -3606,6 +3621,7 @@ function scheduleNextSentencePlay(finishedIndex){
 
   if(!infinite && sentenceRunPlayCount>=targetTimes){
     if(mode==="single"){
+      if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
       playSentenceMode=false;
       sentenceEndHandling=false;
       sentenceCaptionLocked=true;
@@ -3638,7 +3654,7 @@ function scheduleNextSentencePlay(finishedIndex){
 
   sentenceAutoTimer=setTimeout(()=>{
     sentenceAutoTimer=null;
-    if(generation!==sentencePlaybackGeneration)return;
+    if(generation!==sentencePlaybackGeneration || $("#sentenceAutoMode").value!=="continuous" && targetIndex!==finishedIndex)return;
     sentenceEndHandling=false;
     sentenceCaptionLocked=false;
     lockedSentenceIndex=-1;
@@ -3650,6 +3666,7 @@ function scheduleNextSentencePlay(finishedIndex){
 
 $("#prev").onclick=function(){
   if(!playerReady||!subs.length)return;
+  enforceSingleSentenceMode();
   current=Math.max(0,current-1);
   updateTop();
   playSelectedSentence();
@@ -3657,12 +3674,14 @@ $("#prev").onclick=function(){
 
 $("#next").onclick=function(){
   if(!playerReady||!subs.length)return;
+  enforceSingleSentenceMode();
   current=Math.min(subs.length-1,current+1);
   updateTop();
   playSelectedSentence();
 };
 
 $("#playCurrent").onclick=function(){
+  enforceSingleSentenceMode();
   toggleSelectedSentencePlayback();
 };
 
