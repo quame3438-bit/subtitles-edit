@@ -741,6 +741,8 @@ let sentenceStartTimer = null;
 let sentenceRunPlayCount = 0;
 let sentencePlaybackGeneration=0;
 let sentenceEndHandling=false;
+let sentenceHardStopIndex=-1;
+let sentenceHardStopGeneration=-1;
 let monitorTimer = null;
 let suppressAutoUntil = 0;
 let lastMonitoredTime = null;
@@ -2102,6 +2104,15 @@ function ensureNativePlayer(){
     startMonitor();
     // 自定义分段同步已停用。
   });
+  video.addEventListener("timeupdate",()=>{
+    if(!playerReady || currentSourceType==="youtube")return;
+    if(!sentenceCaptionLocked || lockedSentenceIndex<0 || !subs[lockedSentenceIndex])return;
+    if($("#sentenceAutoMode").value!=="single")return;
+    if(!(playSentenceMode || sentenceEndHandling || sentenceHardStopIndex===lockedSentenceIndex))return;
+    if(video.currentTime>=subs[lockedSentenceIndex].end-0.025 && !video.paused){
+      video.pause();
+    }
+  });
   video.addEventListener("pause",()=>{
     savePlaybackPosition(true);
     $("#togglePlay").textContent="▶️ 播放";
@@ -3433,6 +3444,8 @@ window.removeSub=function(i){
 function cancelSentencePlay(){
   sentencePlaybackGeneration++;
   sentenceEndHandling=false;
+  sentenceHardStopIndex=-1;
+  sentenceHardStopGeneration=-1;
   if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
   if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
   playSentenceMode=false;
@@ -3539,6 +3552,8 @@ function enforceSingleSentenceMode(){
   if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
   sentencePlaybackGeneration++;
   sentenceEndHandling=false;
+  sentenceHardStopIndex=-1;
+  sentenceHardStopGeneration=-1;
   $("#sentenceStatus").textContent=sentencePlaySettingSummary();
 }
 
@@ -3546,6 +3561,8 @@ function playSelectedSentence(resetRunCount=true){
   if(!playerReady||!subs.length)return;
   const generation=++sentencePlaybackGeneration;
   sentenceEndHandling=false;
+  sentenceHardStopIndex=-1;
+  sentenceHardStopGeneration=-1;
   if(resetRunCount)sentenceRunPlayCount=0;
   playbackCountMode="sentence";
   updateSegmentPlayCount();
@@ -3667,6 +3684,8 @@ function scheduleNextSentencePlay(finishedIndex){
 $("#prev").onclick=function(){
   if(!playerReady||!subs.length)return;
   enforceSingleSentenceMode();
+  cancelSentencePlay();
+  pause();
   current=Math.max(0,current-1);
   updateTop();
   playSelectedSentence();
@@ -3675,6 +3694,8 @@ $("#prev").onclick=function(){
 $("#next").onclick=function(){
   if(!playerReady||!subs.length)return;
   enforceSingleSentenceMode();
+  cancelSentencePlay();
+  pause();
   current=Math.min(subs.length-1,current+1);
   updateTop();
   playSelectedSentence();
@@ -4035,10 +4056,22 @@ function startMonitor(){
     // 分段播放不依赖字幕；没有导入字幕时也必须按结束点停止。
     if(!subs.length)return;
 
+    // 本句句尾硬保护：即使 Safari 的 pause 异步延迟，仍不允许跨句播放。
+    if(sentenceCaptionLocked && lockedSentenceIndex>=0 && subs[lockedSentenceIndex] &&
+       $("#sentenceAutoMode").value==="single" &&
+       (playSentenceMode || sentenceEndHandling || sentenceHardStopIndex===lockedSentenceIndex)){
+      const boundary=subs[lockedSentenceIndex].end;
+      if(t>=boundary-0.025 && (isPlaying() || playSentenceMode)){
+        pause();
+      }
+    }
+
     if(playSentenceMode && !sentenceEndHandling && lockedSentenceIndex>=0 && subs[lockedSentenceIndex]){
       const sentence=subs[lockedSentenceIndex];
       if(t>=sentence.end-0.025){
         sentenceEndHandling=true;
+        sentenceHardStopIndex=lockedSentenceIndex;
+        sentenceHardStopGeneration=sentencePlaybackGeneration;
         const finishedIndex=lockedSentenceIndex;
         pause();
         // 到句尾仅暂停，不反复 seek，减少 iPhone Safari 解码冲突。
