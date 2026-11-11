@@ -150,11 +150,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 }
 .speed-preset-value{font-variant-numeric:tabular-nums;font-weight:600}
 .speed-preset-value[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #777}
-#bilingualSplitDialog{width:min(94vw,540px);max-height:85dvh;border:0;border-radius:16px;padding:16px;color:#222}
-#bilingualSplitDialog::backdrop{background:#0006}
-#bilingualSplitDialog label{display:block;margin-top:10px}
-#bilingualSplitDialog textarea{display:block;min-height:64px;margin:4px 0;touch-action:auto}
-#bilingualSplitDialog button{background:#eee;color:#222}
 /* 模块只通过 CSS order 排序，不移动 video/iframe DOM，避免 Safari 播放中断。 */
 .wrap{display:flex;flex-direction:column}
 .wrap>.card{flex:none}
@@ -275,19 +270,6 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   </div>
   <div id="cueEditStatus" class="status" aria-live="polite"></div>
 </div>
-
-<dialog id="bilingualSplitDialog" aria-labelledby="bilingualSplitTitle">
-  <b id="bilingualSplitTitle">分割中英文字幕</b>
-  <p id="bilingualSplitTime"></p>
-  <p class="small">在中文和英文各自的切点放置光标，再点对应的「标记切点」。</p>
-  <div id="bilingualSplitFields"></div>
-  <p id="bilingualSplitStatus" class="status" aria-live="polite"></p>
-  <div class="controls">
-    <button type="button" id="confirmBilingualSplit">分割</button>
-    <button type="button" id="keepBilingualSplit">两段都保留全文</button>
-    <button type="button" id="cancelBilingualSplit" autofocus>取消</button>
-  </div>
-</dialog>
 
  <div class="card">
    <b>播放设置</b>
@@ -3782,16 +3764,6 @@ $("#playCurrent").onclick=function(){
   toggleSelectedSentencePlayback();
 };
 
-// 记录字幕编辑框光标：在手机上点击分割按钮后，textarea 会失去焦点。
-let lastCueCaret={index:-1,start:-1};
-function rememberCueCaret(e){
-  const el=e.target;
-  if(!el || !el.matches || !el.matches("#list textarea[data-text]"))return;
-  lastCueCaret={index:Number(el.dataset.text),start:Number(el.selectionStart)};
-}
-for(const type of ["focusin","click","keyup","select","input","touchend"]){
-  document.getElementById("list").addEventListener(type,rememberCueCaret);
-}
 const cueEditUndoStack=[];
 function rememberCueEditUndo(){
   cueEditUndoStack.push({subs:subs.map(x=>({...x})),current});
@@ -3814,6 +3786,19 @@ function cueEditMessage(message){
   $("#cueEditStatus").textContent=message;
 }
 function bilingualCueGroups(text){
+  if(!text.includes("\n")&&/\p{Script=Han}/u.test(text)&&/[A-Za-z]/.test(text)){
+    // 同行双语优先认分隔线、宽空格或句末标点；普通中英混写保留原句结构。
+    const breaks=/[|｜]|[^\S\n]{2,}|(?<=[。！？.!?])\s+|(?<=[。！？])(?=[A-Za-z])/gu;
+    for(const match of text.matchAll(breaks)){
+      const left=text.slice(0,match.index).trim();
+      const right=text.slice(match.index+match[0].length).trim();
+      const leftChinese=/\p{Script=Han}/u.test(left);
+      const rightChinese=/\p{Script=Han}/u.test(right);
+      if(leftChinese!==rightChinese&&/[A-Za-z]/.test(leftChinese?right:left)){
+        return [{language:leftChinese?"zh":"en",text:left},{language:rightChinese?"zh":"en",text:right}];
+      }
+    }
+  }
   const groups=[];
   for(const line of text.split("\n").filter(line=>line.trim())){
     const language=/\p{Script=Han}/u.test(line)?"zh":/[A-Za-z]/.test(line)?"en":null;
@@ -3825,104 +3810,76 @@ function bilingualCueGroups(text){
   return groups.some(group=>group.language==="zh")&&groups.some(group=>group.language==="en")?groups:null;
 }
 
-const bilingualSplitDialog=$("#bilingualSplitDialog");
-let pendingBilingualSplit=null;
-function openBilingualSplit(index,cue,groups,time){
-  cancelSentencePlay();cancelSegmentPlay();pause();
-  $("#bilingualSplitTime").textContent="视频切点 "+fmt(time);
-  $("#bilingualSplitStatus").textContent="";
-  const fields=$("#bilingualSplitFields");
-  fields.replaceChildren();
-  const parts=groups.map((group,i)=>{
-    const label=document.createElement("label");
-    label.textContent=(group.language==="zh"?"中文":"英文")+(groups.length>2?" "+(i+1):"");
-    const area=document.createElement("textarea");
-    area.value=group.text;
-    label.append(area);
-    const mark=document.createElement("button");
-    mark.type="button";
-    mark.textContent="标记切点";
-    fields.append(label,mark);
-    const part={area,cut:null};
-    area.addEventListener("input",()=>{part.cut=null;mark.textContent="标记切点";});
-    mark.onclick=()=>{
-      const cut=area.selectionStart;
-      if(!area.value.slice(0,cut).trim()||!area.value.slice(cut).trim()){
-        $("#bilingualSplitStatus").textContent="请把光标放在这栏文字中间。";
-        return;
-      }
-      part.cut=cut;
-      mark.textContent="已标记";
-      $("#bilingualSplitStatus").textContent="";
-    };
-    return part;
-  });
-  pendingBilingualSplit={index,cue,parts,time};
-  $("#confirmBilingualSplit").hidden=false;
-  bilingualSplitDialog.showModal();
+function cuePauses(text){
+  return [...text.matchAll(/(?:[。！？!?]+|\.(?=\s)|[，、；：;]+|,(?!\d)|\n|[—–]+)[”’"'」』）)]*\s*/g)]
+    .map(match=>({
+      cut:match.index+match[0].length,
+      sentence:/^[。！？!?.]/.test(match[0])
+    }))
+    .filter(({cut})=>text.slice(0,cut).trim()&&text.slice(cut).trim());
 }
-function confirmBilingualSplit(keepWhole){
-  const pending=pendingBilingualSplit;
-  if(!pending)return;
-  const {index,cue,parts,time}=pending;
-  if(subs[index]!==cue){
-    bilingualSplitDialog.close();
-    cueEditMessage("字幕已切换，请重新选择分割位置");
-    return;
+
+function automaticCueCut(text,target,pauses){
+  const closest=cuts=>cuts.reduce((best,cut)=>
+    Math.abs(cut/text.length-target)<Math.abs(best/text.length-target)?cut:best);
+  const nearby=pauses.map(pause=>pause.cut).filter(cut=>Math.abs(cut/text.length-target)<=0.18);
+  if(nearby.length)return closest(nearby);
+  const spaces=[...text.matchAll(/\s+/g)].map(match=>match.index+match[0].length)
+    .filter(cut=>cut<text.length);
+  const hasChinese=/\p{Script=Han}/u.test(text);
+  if(!hasChinese)return spaces.length?closest(spaces):0;
+  if(typeof Intl.Segmenter==="function"){
+    const words=[...new Intl.Segmenter("zh",{granularity:"word"}).segment(text)]
+      .filter(part=>part.isWordLike&&part.index>0).map(part=>part.index);
+    if(words.length)return closest(words);
   }
-  if(!keepWhole&&parts.some(part=>part.cut===null)){
-    $("#bilingualSplitStatus").textContent="请先标记每栏的切点。";
-    return;
+  // 没有词级切点时，至少保持英文字母串和组合字符完整。
+  const units=text.match(/[\p{Script=Han}]\p{M}*|[^\s\p{Script=Han}]+|\s+/gu)||[];
+  let offset=0;
+  const cuts=[];
+  for(const unit of units){
+    offset+=unit.length;
+    if(text.slice(0,offset).trim()&&text.slice(offset).trim())cuts.push(offset);
   }
-  const left=keepWhole?cue.text:parts.map(part=>part.area.value.slice(0,part.cut).trim()).join("\n");
-  const right=keepWhole?cue.text:parts.map(part=>part.area.value.slice(part.cut).trim()).join("\n");
-  bilingualSplitDialog.close();
-  commitCueSplit(index,cue,time,left,right);
+  return cuts.length?closest(cuts):0;
 }
-$("#confirmBilingualSplit").onclick=()=>confirmBilingualSplit(false);
-$("#keepBilingualSplit").onclick=()=>confirmBilingualSplit(true);
-$("#cancelBilingualSplit").onclick=()=>bilingualSplitDialog.close();
-bilingualSplitDialog.addEventListener("close",()=>{pendingBilingualSplit=null;});
 
 function splitCueAtCurrent(){
   if(!subs.length||!subs[current]){cueEditMessage("请先导入字幕");return;}
   const i=current,old=subs[i];
   const duration=Number(old.end)-Number(old.start);
   if(!Number.isFinite(duration)||duration<0.16){cueEditMessage("本句时间太短，无法分割");return;}
-  const text=String(old.text||"");
+  const text=String(old.text||"").trim();
   const playhead=playerReady?now():NaN;
-  const hasCutTime=playhead>old.start+0.08&&playhead<old.end-0.08;
+  const hasCutTime=playhead>=old.start+0.08&&playhead<=old.end-0.08;
+  const target=hasCutTime?(playhead-old.start)/duration:0.5;
   const groups=bilingualCueGroups(text);
+  const parts=groups?[...new Set(groups.map(group=>group.language))].map(language=>
+    groups.filter(group=>group.language===language).map(group=>group.text).join("\n").trim()):[text];
+  const pauses=parts.map(cuePauses);
+  let cuts=parts.map((part,index)=>automaticCueCut(part,target,pauses[index]));
+
   if(groups){
-    if(!hasCutTime){cueEditMessage("请先把视频停在本句中间要分开的地方，再点「分割」");return;}
-    openBilingualSplit(i,old,groups,playhead);
-    return;
+    // 两边有相同数量的分句时，优先按同一序号配对。
+    const sentencePauses=pauses.map(list=>list.filter(pause=>pause.sentence));
+    const paired=sentencePauses[0].length&&sentencePauses[0].length===sentencePauses[1].length
+      ?sentencePauses:pauses;
+    if(paired[0].length&&paired[0].length===paired[1].length){
+      const choices=paired[0].map((pause,index)=>[pause.cut,paired[1][index].cut]);
+      const distance=pair=>Math.abs(pair[0]/parts[0].length-target)+Math.abs(pair[1]/parts[1].length-target);
+      cuts=choices.reduce((best,pair)=>distance(pair)<distance(best)?pair:best);
+    }
   }
-  if(/\p{Script=Han}/u.test(text)&&/[A-Za-z]/.test(text)&&!text.includes("\n")){
-    if(!hasCutTime){cueEditMessage("请先把视频停在本句中间要分开的地方，再点「分割」");return;}
-    openBilingualSplit(i,old,[{language:"mixed",text}],playhead);
-    $("#bilingualSplitFields label").firstChild.textContent="同一行的中英文";
-    $("#bilingualSplitStatus").textContent="中英文在同一行。可先保留全文，或取消后把中英文各放一行再分割。";
-    $("#confirmBilingualSplit").hidden=true;
-    return;
-  }
-  let cut=lastCueCaret.index===i?lastCueCaret.start:-1;
-  if(!(cut>0&&cut<text.length)){
-    // 未指定光标时，优先选择接近中间的词间空格，否则按字符中点分割。
-    const mid=Math.floor(text.length/2);
-    const breaks=[...text.matchAll(/[\s，。！？,.!?;；]+/g)].map(m=>m.index+m[0].length);
-    cut=breaks.filter(x=>x>0&&x<text.length).sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0]??mid;
-  }
-  const left=text.slice(0,cut).trimEnd(),right=text.slice(cut).trimStart();
-  if(text.trim()&&(!left||!right)){
-    cueEditMessage("请在下方『编辑字幕』中，把光标放在要分割的文字中间，再点分割");return;
-  }
-  const time=hasCutTime
-    ?playhead
-    :old.start+duration*(text.length?cut/text.length:0.5);
-  commitCueSplit(i,old,time,left,right);
+
+  const keepFull=Boolean(text)&&cuts.some(cut=>!cut);
+  const left=keepFull?text:parts.map((part,index)=>part.slice(0,cuts[index]).trimEnd()).join("\n");
+  const right=keepFull?text:parts.map((part,index)=>part.slice(cuts[index]).trimStart()).join("\n");
+  const reference=groups?parts.findIndex(part=>!(/\p{Script=Han}/u.test(part))):0;
+  const timingPart=reference<0?0:reference;
+  const time=hasCutTime?playhead:old.start+duration*(keepFull||!text?0.5:cuts[timingPart]/parts[timingPart].length);
+  commitCueSplit(i,old,time,left,right,keepFull);
 }
-function commitCueSplit(i,old,cutTime,left,right){
+function commitCueSplit(i,old,cutTime,left,right,keepFull){
   const time=Math.round(Math.min(old.end-0.08,Math.max(old.start+0.08,cutTime))*1000)/1000;
   if(!(time>old.start&&time<old.end)){cueEditMessage("时间范围无效，无法分割");return;}
   rememberCueEditUndo();
@@ -3932,9 +3889,8 @@ function commitCueSplit(i,old,cutTime,left,right){
     {...old,start:time,text:right,playCount:0}
   );
   current=i;
-  lastCueCaret={index:-1,start:-1};
   renderAll();saveSubtitlesNow();
-  cueEditMessage(`第 ${i+1} 句已分成两句，分割时间 ${fmt(time)}；可点「撤销」恢复，点「完成」确认`);
+  cueEditMessage(`第 ${i+1} 句已分成两句，分割时间 ${fmt(time)}${keepFull?"；找不到合适的文字切点，两段保留全文":""}；可点「撤销」恢复`);
 }
 function mergeCueWithNext(){
   if(!subs.length||!subs[current]){cueEditMessage("请先导入字幕");return;}
@@ -3950,7 +3906,6 @@ function mergeCueWithNext(){
   rememberCueEditUndo();
   subs.splice(i,2,{...a,end:Math.max(a.end,b.end),text:combined,playCount:0});
   current=i;
-  lastCueCaret={index:-1,start:-1};
   renderAll();saveSubtitlesNow();
   cueEditMessage(`已将第 ${i+1} 句与下一句合并；可点「撤销」恢复，点「完成」确认`);
 }
@@ -4001,7 +3956,7 @@ document.addEventListener("pointerdown",e=>{
 },true);
 
 function focusKeyboardBridge(){
-  if(bilingualSplitDialog.open||subtitleSelectionActive())return;
+  if(subtitleSelectionActive())return;
   if(!isAppleTouchDevice || !keyboardBridge || !keyboardBridgeEnabled || isRealEditor(document.activeElement))return;
   try{
     keyboardBridge.focus({preventScroll:true});
@@ -4140,7 +4095,7 @@ function normalizeShortcutCode(e){
   return "";
 }
 
-// 分割弹窗打开后焦点会切换，仍需拦截这次按键的自动重复。
+// 长按分割或合并时，拦截重复按键，避免重复编辑或输入字母。
 const heldCueShortcuts=new Set();
 function handleHardwareShortcut(e){
   const code=normalizeShortcutCode(e);
@@ -4150,7 +4105,6 @@ function handleHardwareShortcut(e){
     e.stopPropagation();
     return;
   }
-  if(bilingualSplitDialog.open)return;
   if(cueShortcut&&(e.isComposing||e.ctrlKey||e.metaKey||e.altKey))return;
   const target=e.target;
 
