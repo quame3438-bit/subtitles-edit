@@ -285,7 +285,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div class="controls">
     <button type="button" id="confirmBilingualSplit">分割</button>
     <button type="button" id="keepBilingualSplit">两段都保留全文</button>
-    <button type="button" id="cancelBilingualSplit">取消</button>
+    <button type="button" id="cancelBilingualSplit" autofocus>取消</button>
   </div>
 </dialog>
 
@@ -4102,6 +4102,10 @@ if(isAppleTouchDevice){
 }
 
 function normalizeShortcutCode(e){
+  // 某些蓝牙小键盘只报告字母或旧式键码。
+  const letter=e.key?.toLowerCase();
+  if(e.code==="KeyQ"||letter==="q"||(!e.code&&e.keyCode===81))return "KeyQ";
+  if(e.code==="KeyW"||letter==="w"||(!e.code&&e.keyCode===87))return "KeyW";
   if(e.code){
     // 部分 iPhone/iPad 会把外接小键盘数字报告成 Digit，桥接状态下统一按小键盘处理。
     if(isAppleTouchDevice && keyboardBridge && e.target===keyboardBridge){
@@ -4136,15 +4140,24 @@ function normalizeShortcutCode(e){
   return "";
 }
 
+// 分割弹窗打开后焦点会切换，仍需拦截这次按键的自动重复。
+const heldCueShortcuts=new Set();
 function handleHardwareShortcut(e){
+  const code=normalizeShortcutCode(e);
+  const cueShortcut=code==="KeyQ"||code==="KeyW";
+  if(cueShortcut&&e.repeat&&heldCueShortcuts.has(code)){
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
   if(bilingualSplitDialog.open)return;
+  if(cueShortcut&&(e.isComposing||e.ctrlKey||e.metaKey||e.altKey))return;
   const target=e.target;
 
   // 普通输入框内不触发快捷键；隐藏桥接输入框除外。
   if(!(isAppleTouchDevice && keyboardBridge && target===keyboardBridge) && isRealEditor(target))return;
   if(e.repeat)return;
 
-  const code=normalizeShortcutCode(e);
   const actions={
     Numpad0:()=>$("#playSegment").click(),
     ArrowLeft:()=>$("#prevSegment").click(),
@@ -4166,16 +4179,22 @@ function handleHardwareShortcut(e){
   if(!action)return;
 
   e.preventDefault();
-  if(isAppleTouchDevice)e.stopPropagation();
+  if(isAppleTouchDevice||cueShortcut)e.stopPropagation();
+  if(cueShortcut)heldCueShortcuts.add(code);
   action();
 
   if(isAppleTouchDevice && keyboardBridge && target===keyboardBridge){
     keyboardBridge.value="";
-    if(keyboardBridgeBadge)keyboardBridgeBadge.textContent="⌨️ 小键盘：已响应 "+code;
+    if(keyboardBridgeBadge){
+      const label=code==="KeyQ"?"分割":code==="KeyW"?"合并":code;
+      keyboardBridgeBadge.textContent="⌨️ 小键盘：已响应 "+label;
+    }
   }
 }
 
 document.addEventListener("keydown",handleHardwareShortcut,true);
+document.addEventListener("keyup",e=>heldCueShortcuts.delete(normalizeShortcutCode(e)),true);
+window.addEventListener("blur",()=>heldCueShortcuts.clear());
 
 
 function startMonitor(){
