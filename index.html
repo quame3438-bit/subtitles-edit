@@ -3525,7 +3525,12 @@ cueShiftSelect.value="1";
 const cueWordUndoStack=[];
 function englishLineInfo(cue){
   const lines=String(cue.text||"").split("\n");
-  const idx=lines.findIndex(line=>/[A-Za-z]/.test(line)&&!/\p{Script=Han}/u.test(line));
+  // A blank English line remains a valid destination after its last word was moved.
+  let idx=lines.findIndex(line=>/[A-Za-z]/.test(line)&&!/\p{Script=Han}/u.test(line));
+  if(idx<0){
+    idx=lines.findIndex(line=>!line.trim());
+    if(idx<0){lines.unshift("");idx=0;}
+  }
   return {lines,idx};
 }
 function transferWords(sourceIndex,targetIndex,fromEnd,toStart,count){
@@ -3533,18 +3538,18 @@ function transferWords(sourceIndex,targetIndex,fromEnd,toStart,count){
   if(!subs[sourceIndex]||!subs[targetIndex]){status.textContent="没有相邻字幕可调整";return;}
   const source=subs[sourceIndex],target=subs[targetIndex];
   const src=englishLineInfo(source),dst=englishLineInfo(target);
-  if(src.idx<0||dst.idx<0){status.textContent="两句都需要独立英文行；中文不调整";return;}
   const words=src.lines[src.idx].trim().split(/\s+/).filter(Boolean);
-  if(words.length<=count){status.textContent="当前句英文单词不足，至少保留一个单词";return;}
+  if(!words.length){status.textContent="来源句没有可移动的英文单词";return;}
+  const n=Math.min(words.length,Math.max(1,Number(count)||1));
+  const moved=fromEnd?words.splice(-n):words.splice(0,n);
+  const targetWords=dst.lines[dst.idx].trim().split(/\s+/).filter(Boolean);
   cueWordUndoStack.push([{index:sourceIndex,text:source.text},{index:targetIndex,text:target.text}]);
   if(cueWordUndoStack.length>100)cueWordUndoStack.shift();
-  const moved=fromEnd?words.splice(-count):words.splice(0,count);
   src.lines[src.idx]=words.join(" ");
-  const targetWords=dst.lines[dst.idx].trim().split(/\s+/).filter(Boolean);
   dst.lines[dst.idx]=(toStart?[...moved,...targetWords]:[...targetWords,...moved]).join(" ");
   source.text=src.lines.join("\n");target.text=dst.lines.join("\n");
   renderAll();scheduleSubtitleSave();
-  status.textContent=`已移动 ${moved.length} 个英文单词；中文、时间和视频进度不变`;
+  status.textContent=`已移动 ${moved.length} 个英文单词；允许原句留空，中文、时间和视频进度不变`;
 }
 // Minus: current first words move to previous cue's end.
 // Plus: current last words move to next cue's beginning.
