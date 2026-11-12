@@ -160,6 +160,14 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .wrap{display:flex;flex-direction:column}
 .wrap>.card{flex:none}
 .cue-word-controls{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-top:10px}.cue-word-controls button{background:#eee;color:#222;min-width:0;padding:10px 5px;font-size:14px}
+.cue-time-panel{margin-top:14px;border-top:1px solid #e6e6e8;padding-top:12px}
+.cue-time-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cue-time-column{text-align:center;min-width:0}
+.cue-time-column>b{display:block;margin-bottom:8px;font-size:15px}
+.cue-time-pair{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.cue-time-pair button{background:#eee;color:#222;font-size:22px;min-width:0;padding:9px 0}
+.cue-time-step-label{display:block;text-align:center;margin:12px auto 0;max-width:240px;font-size:14px}
+.cue-time-step-label select{margin-top:6px;text-align:center;text-align-last:center}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -475,6 +483,14 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div class="cue-word-controls"><button type="button" class="secondary" id="absorbPrevWord">← 吸收上一句一词</button><button type="button" class="secondary" id="undoWordChange">撤销</button><button type="button" class="secondary" id="absorbNextWord">吸收下一句一词 →</button></div>
   <div class="cue-shift-controls"><button type="button" class="secondary" id="cueShiftEarlier">−</button><select id="cueShiftMs" aria-label="每次移动的英文单词数"></select><button type="button" class="secondary" id="cueShiftLater">＋</button></div>
   <div id="cueShiftStatus" class="status" aria-live="polite">只移动英文单词到相邻字幕，中文、时间和视频进度不变</div>
+  <div class="cue-time-panel">
+    <div class="cue-time-columns">
+      <div class="cue-time-column"><b>句首时间</b><div class="cue-time-pair"><button type="button" class="secondary" id="cueStartMinus">−</button><button type="button" class="secondary" id="cueStartPlus">＋</button></div></div>
+      <div class="cue-time-column"><b>句末时间</b><div class="cue-time-pair"><button type="button" class="secondary" id="cueEndMinus">−</button><button type="button" class="secondary" id="cueEndPlus">＋</button></div></div>
+    </div>
+    <label class="cue-time-step-label">时间调整数值<select id="cueTimeStep" aria-label="句首句末时间调整毫秒数"></select></label>
+    <div id="cueTimeStatus" class="status" aria-live="polite">仅修改本句字幕时间，不改变视频进度</div>
+  </div>
 </div>
 
 
@@ -3563,6 +3579,31 @@ document.getElementById("undoWordChange").addEventListener("click",()=>{
   previous.forEach(({index,text})=>{if(subs[index])subs[index].text=text;});
   renderAll();scheduleSubtitleSave();status.textContent="已撤销上一次逐词调整";
 });
+
+// Separate controls for the selected cue's start/end timestamps.
+const cueTimeStep=document.getElementById("cueTimeStep");
+for(const ms of [1,5,10,20,50,100,200,300,400,500,600,700,800,900,1000,1500,2000]){
+  const option=document.createElement("option");option.value=ms;option.textContent=ms+" 毫秒";cueTimeStep.appendChild(option);
+}
+cueTimeStep.value="100";
+function adjustCurrentCueBoundary(field,direction){
+  const status=document.getElementById("cueTimeStatus");
+  const cue=subs[current];
+  if(!cue){status.textContent="请先选择一条字幕";return;}
+  const step=Number(cueTimeStep.value)/1000;
+  const candidate=Math.round((Number(cue[field])+direction*step)*1000)/1000;
+  if(!Number.isFinite(candidate)||candidate<0){status.textContent="时间不能小于 0";return;}
+  if(field==="start"&&candidate>=Number(cue.end)){status.textContent="句首时间必须早于句末时间";return;}
+  if(field==="end"&&candidate<=Number(cue.start)){status.textContent="句末时间必须晚于句首时间";return;}
+  cue[field]=candidate;
+  // Never seek, pause, play or change the selected cue here.
+  renderAll();scheduleSubtitleSave();
+  status.textContent=(field==="start"?"句首":"句末")+"已"+(direction<0?"提前":"延后")+" "+cueTimeStep.value+" 毫秒；视频进度不变";
+}
+document.getElementById("cueStartMinus").addEventListener("click",()=>adjustCurrentCueBoundary("start",-1));
+document.getElementById("cueStartPlus").addEventListener("click",()=>adjustCurrentCueBoundary("start",1));
+document.getElementById("cueEndMinus").addEventListener("click",()=>adjustCurrentCueBoundary("end",-1));
+document.getElementById("cueEndPlus").addEventListener("click",()=>adjustCurrentCueBoundary("end",1));
 
 window.adjust=function(i,field,dir){
   const step=(Number($("#msStep").value)||10)/1000;
