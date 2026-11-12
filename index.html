@@ -3592,28 +3592,44 @@ document.getElementById("undoWordChange").addEventListener("click",()=>{
   const status=document.getElementById("cueShiftStatus");
   status.textContent=restoreCueUndo()?"已撤销上一次修改（文字或时间）":"没有可以撤销的操作";
 });
-// Shift subtitle text across fixed timestamp slots, without changing video time.
+// Merge only the selected cue into its immediate neighbor. Never cascade or alter timestamps.
 function shiftSentenceText(direction){
   const status=document.getElementById("cueSentenceStatus");
   if(!subs[current]){status.textContent="请先选中一句字幕";return;}
-  const last=subs.length-1;
-  if(direction>0){
-    if(current>=last){status.textContent="当前已是最后一句，无法后移";return;}
-    // Prevent silent data loss at the right edge.
-    if(String(subs[last].text||"").trim()){
-      status.textContent="末句仍有字幕，为防止丢失内容，请先在末尾添加一条空白字幕，再执行后移";return;
-    }
-    recordCueUndo();
-    for(let i=last;i>current;i--)subs[i].text=subs[i-1].text;
-    subs[current].text="";
-  }else{
-    if(current>=last){status.textContent="当前已是最后一句，后面没有字幕可以前移";return;}
-    recordCueUndo();
-    for(let i=current;i<last;i++)subs[i].text=subs[i+1].text;
-    subs[last].text="";
+  const sourceIndex=current;
+  const targetIndex=current+direction;
+  if(targetIndex<0||targetIndex>=subs.length){
+    status.textContent=direction<0?"已经是第一句，无法继续前移":"已经是最后一句，无法继续后移";
+    return;
   }
-  renderAll();scheduleSubtitleSave();
-  status.textContent=direction>0?"本句及后续文字已后移一格；原句留空，所有时间不变":"后续文字已前移一格；末句留空，所有时间不变";
+  const sourceText=String(subs[sourceIndex].text||"");
+  if(!sourceText.trim()){status.textContent="当前句已经是空白，没有可移动的台词";return;}
+  const targetText=String(subs[targetIndex].text||"");
+  // Keep English and Chinese in their own lines, rather than mixing languages.
+  function splitBilingual(text){
+    const en=[],zh=[],other=[];
+    for(const line of text.split(/\r?\n/)){
+      const t=line.trim();if(!t)continue;
+      if(/[\u3400-\u9fff]/.test(t))zh.push(t);
+      else if(/[A-Za-z]/.test(t))en.push(t);
+      else other.push(t);
+    }
+    return {en,zh,other};
+  }
+  const src=splitBilingual(sourceText),dst=splitBilingual(targetText);
+  function joinLines(a,b){return [...a,...b].filter(Boolean).join(" ");}
+  const first=direction<0?dst:src;
+  const second=direction<0?src:dst;
+  const merged=[joinLines(first.en,second.en),joinLines(first.zh,second.zh),joinLines(first.other,second.other)].filter(Boolean).join("\n");
+  recordCueUndo();
+  subs[targetIndex].text=merged;
+  subs[sourceIndex].text="";
+  current=targetIndex;
+  renderAll();
+  scheduleSubtitleSave();
+  status.textContent=direction<0
+    ?"本句已合并到上一句末尾；原句留空，其他句及所有时间不变，可撤销"
+    :"本句已合并到下一句开头；原句留空，其他句及所有时间不变，可撤销";
 }
 document.getElementById("cueSentenceEarlier").addEventListener("click",()=>shiftSentenceText(-1));
 document.getElementById("cueSentenceLater").addEventListener("click",()=>shiftSentenceText(1));
