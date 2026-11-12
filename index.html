@@ -160,7 +160,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .wrap{display:flex;flex-direction:column}
 .wrap>.card{flex:none}
 .cue-word-controls{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-top:10px}.cue-word-controls button{background:#eee;color:#222;min-width:0;padding:10px 5px;font-size:14px}
-.cue-time-panel{margin-top:14px;border-top:1px solid #e6e6e8;padding-top:12px}
+.cue-sentence-shift{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.cue-sentence-shift button{background:#eee;color:#222;min-height:48px}.cue-time-panel{margin-top:14px;border-top:1px solid #e6e6e8;padding-top:12px}
 .cue-time-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cue-time-column{text-align:center;min-width:0}
 .cue-time-column>b{display:block;margin-bottom:8px;font-size:15px}
@@ -490,6 +490,8 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     </div>
     <label class="cue-time-step-label">时间调整数值<select id="cueTimeStep" aria-label="句首句末时间调整毫秒数"></select></label>
     <div id="cueTimeStatus" class="status" aria-live="polite">仅修改本句字幕时间，不改变视频进度</div>
+    <div class="cue-sentence-shift"><button type="button" class="secondary" id="cueSentenceEarlier">← 句子前移</button><button type="button" class="secondary" id="cueSentenceLater">句子后移 →</button></div>
+    <div id="cueSentenceStatus" class="status" aria-live="polite">仅移动当前句及后续字幕文字，所有时间保持原样</div>
   </div>
 </div>
 
@@ -3539,6 +3541,20 @@ for(let n=1;n<=20;n++){
 }
 cueShiftSelect.value="1";
 const cueWordUndoStack=[];
+function recordCueUndo(){
+  cueWordUndoStack.push({snapshot:subs.map(c=>({text:c.text,start:c.start,end:c.end})),selected:current});
+  if(cueWordUndoStack.length>100)cueWordUndoStack.shift();
+}
+function restoreCueUndo(){
+  const prev=cueWordUndoStack.pop();
+  if(!prev)return false;
+  if(prev.snapshot.length!==subs.length){cueWordUndoStack.push(prev);return false;}
+  prev.snapshot.forEach((saved,i)=>{subs[i].text=saved.text;subs[i].start=saved.start;subs[i].end=saved.end;});
+  current=prev.selected;
+  renderAll();scheduleSubtitleSave();
+  return true;
+}
+
 function englishLineInfo(cue){
   const lines=String(cue.text||"").split("\n");
   // A blank English line remains a valid destination after its last word was moved.
@@ -3559,8 +3575,7 @@ function transferWords(sourceIndex,targetIndex,fromEnd,toStart,count){
   const n=Math.min(words.length,Math.max(1,Number(count)||1));
   const moved=fromEnd?words.splice(-n):words.splice(0,n);
   const targetWords=dst.lines[dst.idx].trim().split(/\s+/).filter(Boolean);
-  cueWordUndoStack.push([{index:sourceIndex,text:source.text},{index:targetIndex,text:target.text}]);
-  if(cueWordUndoStack.length>100)cueWordUndoStack.shift();
+  recordCueUndo();
   src.lines[src.idx]=words.join(" ");
   dst.lines[dst.idx]=(toStart?[...moved,...targetWords]:[...targetWords,...moved]).join(" ");
   source.text=src.lines.join("\n");target.text=dst.lines.join("\n");
@@ -3574,11 +3589,34 @@ document.getElementById("cueShiftLater").addEventListener("click",()=>transferWo
 document.getElementById("absorbPrevWord").addEventListener("click",()=>transferWords(current-1,current,true,true,1));
 document.getElementById("absorbNextWord").addEventListener("click",()=>transferWords(current+1,current,false,false,1));
 document.getElementById("undoWordChange").addEventListener("click",()=>{
-  const previous=cueWordUndoStack.pop();const status=document.getElementById("cueShiftStatus");
-  if(!previous){status.textContent="没有可以撤销的逐词操作";return;}
-  previous.forEach(({index,text})=>{if(subs[index])subs[index].text=text;});
-  renderAll();scheduleSubtitleSave();status.textContent="已撤销上一次逐词调整";
+  const status=document.getElementById("cueShiftStatus");
+  status.textContent=restoreCueUndo()?"已撤销上一次修改（文字或时间）":"没有可以撤销的操作";
 });
+// Shift subtitle text across fixed timestamp slots, without changing video time.
+function shiftSentenceText(direction){
+  const status=document.getElementById("cueSentenceStatus");
+  if(!subs[current]){status.textContent="请先选中一句字幕";return;}
+  const last=subs.length-1;
+  if(direction>0){
+    if(current>=last){status.textContent="当前已是最后一句，无法后移";return;}
+    // Prevent silent data loss at the right edge.
+    if(String(subs[last].text||"").trim()){
+      status.textContent="末句仍有字幕，为防止丢失内容，请先在末尾添加一条空白字幕，再执行后移";return;
+    }
+    recordCueUndo();
+    for(let i=last;i>current;i--)subs[i].text=subs[i-1].text;
+    subs[current].text="";
+  }else{
+    if(current>=last){status.textContent="当前已是最后一句，后面没有字幕可以前移";return;}
+    recordCueUndo();
+    for(let i=current;i<last;i++)subs[i].text=subs[i+1].text;
+    subs[last].text="";
+  }
+  renderAll();scheduleSubtitleSave();
+  status.textContent=direction>0?"本句及后续文字已后移一格；原句留空，所有时间不变":"后续文字已前移一格；末句留空，所有时间不变";
+}
+document.getElementById("cueSentenceEarlier").addEventListener("click",()=>shiftSentenceText(-1));
+document.getElementById("cueSentenceLater").addEventListener("click",()=>shiftSentenceText(1));
 
 // Separate controls for the selected cue's start/end timestamps.
 const cueTimeStep=document.getElementById("cueTimeStep");
@@ -3595,6 +3633,7 @@ function adjustCurrentCueBoundary(field,direction){
   if(!Number.isFinite(candidate)||candidate<0){status.textContent="时间不能小于 0";return;}
   if(field==="start"&&candidate>=Number(cue.end)){status.textContent="句首时间必须早于句末时间";return;}
   if(field==="end"&&candidate<=Number(cue.start)){status.textContent="句末时间必须晚于句首时间";return;}
+  recordCueUndo();
   cue[field]=candidate;
   // Never seek, pause, play or change the selected cue here.
   renderAll();scheduleSubtitleSave();
