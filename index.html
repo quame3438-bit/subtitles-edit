@@ -155,11 +155,11 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .cue-shift-controls select{height:46px;text-align:center;text-align-last:center}
 .card-collapse-toggle .collapse-title{flex:1}
 .card-move-actions{display:flex;gap:5px;margin-left:auto}
-.card-move-actions button{background:#eee;color:#222;padding:5px 10px;border-radius:8px;font-size:17px;min-width:36px}
+.card-move-actions button{background:#eee;color:#222;padding:5px 10px;border-radius:8px;font-size:17px;min-width:36px}.card-collapse-toggle{cursor:pointer}.card-move-actions{flex-shrink:0}.cue-word-controls #undoWordChange{min-width:54px}
 /* CSS order prevents video element reparenting on Safari. */
 .wrap{display:flex;flex-direction:column}
 .wrap>.card{flex:none}
-.cue-word-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.cue-word-controls button{background:#eee;color:#222;min-width:0;padding:10px 5px;font-size:14px}
+.cue-word-controls{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-top:10px}.cue-word-controls button{background:#eee;color:#222;min-width:0;padding:10px 5px;font-size:14px}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -472,9 +472,9 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <div class="card" id="subtitleDetailEditorCard">
   <b>编辑字幕（二）：开始时间、结束时间、字幕文字</b>
   <div id="list" class="subtitle-strip"></div>
-  <div class="cue-word-controls"><button type="button" class="secondary" id="absorbPrevWord">← 吸收上一句一词</button><button type="button" class="secondary" id="absorbNextWord">吸收下一句一词 →</button></div>
-  <div class="cue-shift-controls"><button type="button" class="secondary" id="cueShiftEarlier">−</button><select id="cueShiftMs" aria-label="本句整体平移毫秒数"></select><button type="button" class="secondary" id="cueShiftLater">＋</button></div>
-  <div id="cueShiftStatus" class="status" aria-live="polite">仅移动当前句字幕时间，视频进度不变</div>
+  <div class="cue-word-controls"><button type="button" class="secondary" id="absorbPrevWord">← 吸收上一句一词</button><button type="button" class="secondary" id="undoWordChange">撤销</button><button type="button" class="secondary" id="absorbNextWord">吸收下一句一词 →</button></div>
+  <div class="cue-shift-controls"><button type="button" class="secondary" id="cueShiftEarlier">−</button><select id="cueShiftMs" aria-label="每次移动的英文单词数"></select><button type="button" class="secondary" id="cueShiftLater">＋</button></div>
+  <div id="cueShiftStatus" class="status" aria-live="polite">只移动英文单词到相邻字幕，中文、时间和视频进度不变</div>
 </div>
 
 
@@ -647,7 +647,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 "use strict";
 
 const COLLAPSED_CARD_KEY="ytCollapsedCards:v1";
-// 固定布局：不允许用户拖动或调整模块顺序，避免 Safari 视频播放时重排。
+// 使用 CSS order 调整模块视觉顺序，避免 Safari 视频节点重新挂载。
 function initCollapsibleCards(){
   let saved={};
   try{saved=JSON.parse(localStorage.getItem(COLLAPSED_CARD_KEY)||"{}")||{};}catch(e){saved={};}
@@ -724,6 +724,16 @@ function initCollapsibleCards(){
     toggle.className="card-collapse-toggle";
     toggle.innerHTML='<span class="triangle">▼</span><span class="collapse-title"></span>';
     toggle.querySelector(".collapse-title").textContent=title;
+    if(movable.includes(card)){
+      const actions=document.createElement("span");actions.className="card-move-actions";
+      for(const [direction,label] of [[-1,"↑"],[1,"↓"]]){
+        const btn=document.createElement("button");btn.type="button";btn.textContent=label;
+        btn.setAttribute("aria-label",direction<0?"模块上移":"模块下移");
+        btn.addEventListener("click",event=>{event.stopPropagation();moveCard(card,direction);});
+        actions.appendChild(btn);
+      }
+      toggle.appendChild(actions);
+    }
 
     const content=document.createElement("div");
     content.className="collapsible-content";
@@ -3507,61 +3517,47 @@ $("#shiftRangeLater").onclick=()=>shiftAllSubtitleTimes(1,false,true);
 
 // Move only the active cue's subtitle timestamps. Never seek, pause or restart video.
 const cueShiftSelect=document.getElementById("cueShiftMs");
-for(const ms of [...Array.from({length:20},(_,i)=>(i+1)*100),10,20,50]){
-  const option=document.createElement("option");option.value=ms;option.textContent=ms+" 毫秒";
+for(let n=1;n<=20;n++){
+  const option=document.createElement("option");option.value=n;option.textContent=n+" 词";
   cueShiftSelect.appendChild(option);
 }
-cueShiftSelect.value="100";
-function shiftCurrentCueOnly(direction){
-  const status=document.getElementById("cueShiftStatus");
-  if(!subs.length||!subs[current]){status.textContent="请先导入并选择一句字幕";return;}
-  const ms=Number(cueShiftSelect.value),cue=subs[current];
-  const start=Math.round(cue.start*1000)+direction*ms;
-  const end=Math.round(cue.end*1000)+direction*ms;
-  if(start<0){status.textContent="无法继续提前：字幕开始时间不能小于零";return;}
-  cue.start=start/1000;cue.end=end/1000;
-  // Only update the displayed timestamps; do not change the media player's state.
-  const active=document.querySelector('#list [data-row="'+current+'"]');
-  if(active){
-    const startInput=active.querySelector('[data-time="start"]');
-    const endInput=active.querySelector('[data-time="end"]');
-    if(startInput)startInput.value=fmt(cue.start);
-    if(endInput)endInput.value=fmt(cue.end);
-  }
-  status.textContent=`第 ${current+1} 句已${direction<0?"提前":"延后"} ${ms} 毫秒；视频进度未改变`;
-  scheduleSubtitleSave();
+cueShiftSelect.value="1";
+const cueWordUndoStack=[];
+function englishLineInfo(cue){
+  const lines=String(cue.text||"").split("\n");
+  const idx=lines.findIndex(line=>/[A-Za-z]/.test(line)&&!/\p{Script=Han}/u.test(line));
+  return {lines,idx};
 }
-document.getElementById("cueShiftEarlier").addEventListener("click",()=>shiftCurrentCueOnly(-1));
-document.getElementById("cueShiftLater").addEventListener("click",()=>shiftCurrentCueOnly(1));
-
-// Transfer exactly one English word across the selected cue boundary; Chinese lines stay untouched.
-function absorbAdjacentWord(direction){
+function transferWords(sourceIndex,targetIndex,fromEnd,toStart,count){
   const status=document.getElementById("cueShiftStatus");
-  const neighborIndex=current+direction;
-  if(!subs[current]||!subs[neighborIndex]){status.textContent=direction<0?"没有上一句可吸收":"没有下一句可吸收";return;}
-  const source=subs[neighborIndex], target=subs[current];
-  function englishLineInfo(cue){
-    const lines=String(cue.text||"").split("\n");
-    const idx=lines.findIndex(line=>/[A-Za-z]/.test(line)&&!/\p{Script=Han}/u.test(line));
-    return {lines,idx};
-  }
+  if(!subs[sourceIndex]||!subs[targetIndex]){status.textContent="没有相邻字幕可调整";return;}
+  const source=subs[sourceIndex],target=subs[targetIndex];
   const src=englishLineInfo(source),dst=englishLineInfo(target);
-  if(src.idx<0||dst.idx<0){status.textContent="两句都需要有独立英文行；中文保持不变";return;}
-  const sourceText=src.lines[src.idx].trim();
-  const match=direction<0?sourceText.match(/^(.*?)(?:\s+|^)([\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*[.,!?;:]?)$/u):sourceText.match(/^([\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*[.,!?;:]?)(?:\s+)(.+)$/u);
-  if(!match){status.textContent="相邻句英文不足两个单词，不能继续吸收";return;}
-  const word=direction<0?match[2]:match[1];
-  const remaining=direction<0?match[1].trim():match[2].trim();
-  if(!remaining){status.textContent="不能把相邻句的英文全部吸空";return;}
-  src.lines[src.idx]=remaining;
-  dst.lines[dst.idx]=direction<0?word+" "+dst.lines[dst.idx].trim():dst.lines[dst.idx].trim()+" "+word;
+  if(src.idx<0||dst.idx<0){status.textContent="两句都需要独立英文行；中文不调整";return;}
+  const words=src.lines[src.idx].trim().split(/\s+/).filter(Boolean);
+  if(words.length<=count){status.textContent="当前句英文单词不足，至少保留一个单词";return;}
+  cueWordUndoStack.push([{index:sourceIndex,text:source.text},{index:targetIndex,text:target.text}]);
+  if(cueWordUndoStack.length>100)cueWordUndoStack.shift();
+  const moved=fromEnd?words.splice(-count):words.splice(0,count);
+  src.lines[src.idx]=words.join(" ");
+  const targetWords=dst.lines[dst.idx].trim().split(/\s+/).filter(Boolean);
+  dst.lines[dst.idx]=(toStart?[...moved,...targetWords]:[...targetWords,...moved]).join(" ");
   source.text=src.lines.join("\n");target.text=dst.lines.join("\n");
-  // No seek, pause, or timestamp changes.
   renderAll();scheduleSubtitleSave();
-  status.textContent=`已从${direction<0?"上一句":"下一句"}吸收 “${word}”；中文及视频时间不变`;
+  status.textContent=`已移动 ${moved.length} 个英文单词；中文、时间和视频进度不变`;
 }
-document.getElementById("absorbPrevWord").addEventListener("click",()=>absorbAdjacentWord(-1));
-document.getElementById("absorbNextWord").addEventListener("click",()=>absorbAdjacentWord(1));
+// Minus: current first words move to previous cue's end.
+// Plus: current last words move to next cue's beginning.
+document.getElementById("cueShiftEarlier").addEventListener("click",()=>transferWords(current,current-1,false,false,Number(cueShiftSelect.value)));
+document.getElementById("cueShiftLater").addEventListener("click",()=>transferWords(current,current+1,true,true,Number(cueShiftSelect.value)));
+document.getElementById("absorbPrevWord").addEventListener("click",()=>transferWords(current-1,current,true,true,1));
+document.getElementById("absorbNextWord").addEventListener("click",()=>transferWords(current+1,current,false,false,1));
+document.getElementById("undoWordChange").addEventListener("click",()=>{
+  const previous=cueWordUndoStack.pop();const status=document.getElementById("cueShiftStatus");
+  if(!previous){status.textContent="没有可以撤销的逐词操作";return;}
+  previous.forEach(({index,text})=>{if(subs[index])subs[index].text=text;});
+  renderAll();scheduleSubtitleSave();status.textContent="已撤销上一次逐词调整";
+});
 
 window.adjust=function(i,field,dir){
   const step=(Number($("#msStep").value)||10)/1000;
