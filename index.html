@@ -168,6 +168,17 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .cue-time-pair button{background:#eee;color:#222;font-size:22px;min-width:0;padding:9px 0}
 .cue-time-step-label{display:block;text-align:center;margin:12px auto 0;max-width:240px;font-size:14px}
 .cue-time-step-label select{margin-top:6px;text-align:center;text-align-last:center}
+
+/* 简洁字幕编辑布局 */
+#subtitleDetailEditorCard .cue-time-three{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
+#subtitleDetailEditorCard .cue-time-three label{min-width:0;text-align:center;font-size:12px}
+#subtitleDetailEditorCard .cue-time-three input,#subtitleDetailEditorCard .cue-time-three select{margin-top:5px;min-width:0;width:100%;padding:9px 2px;text-align:center;text-align-last:center;font-size:12px;height:40px}
+#subtitleDetailEditorCard .cue-time-three .cue-time-pair{gap:4px}
+#subtitleDetailEditorCard .cue-time-three .cue-time-pair button{padding:8px 0}
+#subtitleDetailEditorCard .item .controls{display:grid;grid-template-columns:1fr 0.7fr 0.7fr 1fr;gap:5px}
+#subtitleDetailEditorCard .item .controls button{min-width:0;padding:9px 2px;font-size:12px}
+#subtitleDetailEditorCard .cue-shift-controls button{font-size:14px}
+#subtitleDetailEditorCard .cue-time-panel .status:empty{display:none}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -480,18 +491,21 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 <div class="card" id="subtitleDetailEditorCard">
   <b>编辑字幕（二）：开始时间、结束时间、字幕文字</b>
   <div id="list" class="subtitle-strip"></div>
-  <div class="cue-word-controls"><button type="button" class="secondary" id="absorbPrevWord">← 吸收上一句一词</button><button type="button" class="secondary" id="undoWordChange">撤销</button><button type="button" class="secondary" id="absorbNextWord">吸收下一句一词 →</button></div>
-  <div class="cue-shift-controls"><button type="button" class="secondary" id="cueShiftEarlier">−</button><select id="cueShiftMs" aria-label="每次移动的英文单词数"></select><button type="button" class="secondary" id="cueShiftLater">＋</button></div>
-  <div id="cueShiftStatus" class="status" aria-live="polite">只移动英文单词到相邻字幕，中文、时间和视频进度不变</div>
+  <div class="cue-sentence-shift"><button type="button" class="secondary" id="cueSentenceEarlier">← 句子前移</button><button type="button" class="secondary" id="cueSentenceLater">句子后移 →</button></div>
+  <div class="cue-word-controls"><button type="button" class="secondary" id="absorbPrevWord">← 吸收上一句词</button><button type="button" class="secondary" id="undoWordChange">撤销</button><button type="button" class="secondary" id="absorbNextWord">吸收下一句词 →</button></div>
+  <div class="cue-shift-controls"><button type="button" class="secondary" id="cueShiftEarlier">句首 −</button><select id="cueShiftMs" aria-label="每次移动的英文单词数"></select><button type="button" class="secondary" id="cueShiftLater">句末 −</button></div>
   <div class="cue-time-panel">
-    <div class="cue-time-columns">
-      <div class="cue-time-column"><b>句首时间</b><div class="cue-time-pair"><button type="button" class="secondary" id="cueStartMinus">−</button><button type="button" class="secondary" id="cueStartPlus">＋</button></div></div>
-      <div class="cue-time-column"><b>句末时间</b><div class="cue-time-pair"><button type="button" class="secondary" id="cueEndMinus">−</button><button type="button" class="secondary" id="cueEndPlus">＋</button></div></div>
+    <div class="cue-time-three">
+      <label>开始时间<input id="activeCueStart" class="timeinput" type="text" aria-label="当前句开始时间"></label>
+      <label>时间调整数值<select id="cueTimeStep" aria-label="句首句末时间调整毫秒数"></select></label>
+      <label>结束时间<input id="activeCueEnd" class="timeinput" type="text" aria-label="当前句结束时间"></label>
+      <div class="cue-time-pair"><button type="button" class="secondary" id="cueStartMinus">−</button><button type="button" class="secondary" id="cueStartPlus">＋</button></div>
+      <div></div>
+      <div class="cue-time-pair"><button type="button" class="secondary" id="cueEndMinus">−</button><button type="button" class="secondary" id="cueEndPlus">＋</button></div>
     </div>
-    <label class="cue-time-step-label">时间调整数值<select id="cueTimeStep" aria-label="句首句末时间调整毫秒数"></select></label>
-    <div id="cueTimeStatus" class="status" aria-live="polite">仅修改本句字幕时间，不改变视频进度</div>
-    <div class="cue-sentence-shift"><button type="button" class="secondary" id="cueSentenceEarlier">← 句子前移</button><button type="button" class="secondary" id="cueSentenceLater">句子后移 →</button></div>
-    <div id="cueSentenceStatus" class="status" aria-live="polite">仅移动当前句及后续字幕文字，所有时间保持原样</div>
+    <div id="cueShiftStatus" class="status" aria-live="polite"></div>
+    <div id="cueTimeStatus" class="status" aria-live="polite"></div>
+    <div id="cueSentenceStatus" class="status" aria-live="polite"></div>
   </div>
 </div>
 
@@ -3450,25 +3464,21 @@ function renderAll(){
         <div>
           <div class="small">开始时间</div>
           <input class="timeinput" data-time="start" data-i="${i}" value="${fmt(s.start)}">
-          <div class="timebox" style="margin-top:6px">
-            <button onclick="adjust(${i},'start',-1)">－</button>
-            <button onclick="adjust(${i},'start',1)">＋</button>
-          </div>
+
         </div>
         <div>
           <div class="small">结束时间</div>
           <input class="timeinput" data-time="end" data-i="${i}" value="${fmt(s.end)}">
-          <div class="timebox" style="margin-top:6px">
-            <button onclick="adjust(${i},'end',-1)">－</button>
-            <button onclick="adjust(${i},'end',1)">＋</button>
-          </div>
+
         </div>
         <div class="small" style="grid-column:1/-1;margin-top:2px">编辑字幕</div>
         <textarea data-text="${i}">${escapeHtml(s.text)}</textarea>
       </div>
       <div class="controls">
+        <button class="secondary" onclick="insertCueNear(${i},-1)">＋框（左）</button>
         <button class="secondary" onclick="locate(${i})">定位</button>
         <button class="secondary" onclick="removeSub(${i})">删除</button>
+        <button class="secondary" onclick="insertCueNear(${i},1)">＋框（右）</button>
       </div>
     </div>
   `;}).join("");
@@ -3490,6 +3500,24 @@ function renderAll(){
     };
   });
   updateTop();
+  const active=subs[current];
+  const startInput=document.getElementById("activeCueStart"),endInput=document.getElementById("activeCueEnd");
+  if(startInput)startInput.value=active?fmt(active.start):"";
+  if(endInput)endInput.value=active?fmt(active.end):"";
+}
+
+function insertCueNear(i,direction){
+  if(!subs[i])return;
+  recordCueUndo();
+  const at=direction<0?i:i+1;
+  const anchor=subs[i];
+  const start=direction<0?Math.max(0,anchor.start-0.5):anchor.end;
+  const end=direction<0?anchor.start:anchor.end+0.5;
+  subs.splice(at,0,{start,end,text:""});
+  current=at;
+  renderAll();scheduleSubtitleSave();
+  const field=document.querySelector(`[data-text="${at}"]`);
+  if(field){field.scrollIntoView({block:"nearest",inline:"center"});field.focus();}
 }
 
 function escapeHtml(s){
@@ -3548,8 +3576,7 @@ function recordCueUndo(){
 function restoreCueUndo(){
   const prev=cueWordUndoStack.pop();
   if(!prev)return false;
-  if(prev.snapshot.length!==subs.length){cueWordUndoStack.push(prev);return false;}
-  prev.snapshot.forEach((saved,i)=>{subs[i].text=saved.text;subs[i].start=saved.start;subs[i].end=saved.end;});
+  subs=prev.snapshot.map(saved=>({...saved}));
   current=prev.selected;
   renderAll();scheduleSubtitleSave();
   return true;
@@ -3584,6 +3611,16 @@ function transferWords(sourceIndex,targetIndex,fromEnd,toStart,count){
 }
 // Minus: current first words move to previous cue's end.
 // Plus: current last words move to next cue's beginning.
+for(const [id,field] of [["activeCueStart","start"],["activeCueEnd","end"]]){
+  document.getElementById(id).addEventListener("change",e=>{
+    if(!subs[current])return;
+    const next=parseTime(e.target.value);
+    if(!Number.isFinite(next)||next<0||(field==="start"&&next>subs[current].end)||(field==="end"&&next<subs[current].start)){
+      e.target.value=fmt(subs[current][field]);return;
+    }
+    recordCueUndo();subs[current][field]=next;renderAll();scheduleSubtitleSave();
+  });
+}
 document.getElementById("cueShiftEarlier").addEventListener("click",()=>transferWords(current,current-1,false,false,Number(cueShiftSelect.value)));
 document.getElementById("cueShiftLater").addEventListener("click",()=>transferWords(current,current+1,true,true,Number(cueShiftSelect.value)));
 document.getElementById("absorbPrevWord").addEventListener("click",()=>transferWords(current-1,current,true,true,1));
