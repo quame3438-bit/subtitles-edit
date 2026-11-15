@@ -135,7 +135,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
  .complete-backup-actions .import-all{grid-column:1/-1}
 }
 
-#timeSubtitlePlayCard{--play-key-height:64px}
+#timeSubtitlePlayCard{--play-key-height:32px}
 .time-speed-grid,.time-play-grid,.cue-edit-grid{display:grid;gap:8px;margin-top:8px}
 .time-speed-grid,.time-play-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .cue-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -146,7 +146,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .speed-preset{display:grid;grid-template-columns:minmax(0,1fr) minmax(32px,34%);gap:4px;min-width:0}
 .speed-preset-steps{display:grid;grid-template-rows:1fr 1fr;gap:4px}
 #timeSubtitlePlayCard .time-speed-grid .speed-preset-steps button{
-  height:calc((var(--play-key-height) - 4px) / 2);padding:0;border-radius:8px
+  height:calc((var(--play-key-height) - 4px) / 2);padding:0;border-radius:6px;font-size:13px
 }
 .speed-preset-value{font-variant-numeric:tabular-nums;font-weight:600}
 .speed-preset-value[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #777}
@@ -169,6 +169,10 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .cue-time-step-label{display:block;text-align:center;margin:12px auto 0;max-width:240px;font-size:14px}
 .cue-time-step-label select{margin-top:6px;text-align:center;text-align-last:center}
 
+/* 时间字幕播放：按钮高度减半，布局和功能不变 */
+#timeSubtitlePlayCard :is(.time-speed-grid,.time-play-grid,.cue-edit-grid) button{font-size:13px;padding:2px 3px;border-radius:9px}
+#timeSubtitlePlayCard .speed-preset-steps button{font-size:12px}
+#timeSubtitlePlayCard .time-speed-grid,#timeSubtitlePlayCard .time-play-grid,#timeSubtitlePlayCard .cue-edit-grid{gap:6px;margin-top:6px}
 /* 简洁字幕编辑布局 */
 #subtitleAdjustCard .cue-time-three{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
 #subtitleAdjustCard .cue-time-three label{min-width:0;text-align:center;font-size:12px}
