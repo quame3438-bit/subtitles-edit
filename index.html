@@ -154,6 +154,10 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .cue-shift-controls button{background:#eee;color:#222;font-size:23px;min-height:46px}
 .cue-shift-controls select{height:46px;text-align:center;text-align-last:center}
 .card-collapse-toggle .collapse-title{flex:1}
+.video-card-header .collapse-title{flex:0 0 auto}
+#toggleNativeControls{margin-inline:auto;padding:6px 9px;font-size:14px;white-space:nowrap}
+.card:not(.collapsed) #toggleNativeControls:not([hidden]) + .card-move-actions{margin-left:0}
+.card.collapsed>.video-card-header #toggleNativeControls{display:none}
 .card-move-actions{display:flex;gap:5px;margin-left:auto}
 .card-move-actions button{background:#eee;color:#222;padding:5px 10px;border-radius:8px;font-size:17px;min-width:36px}.card-collapse-toggle{cursor:pointer}.card-move-actions{flex-shrink:0}.cue-word-controls #undoWordChange{min-width:54px}
 /* CSS order prevents video element reparenting on Safari. */
@@ -245,7 +249,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 </div>
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
-  <button type="button" class="secondary" id="toggleNativeControls" aria-controls="nativePlayer" style="margin-top:8px" hidden>隐藏控件</button>
+  <button type="button" class="secondary" id="toggleNativeControls" aria-controls="nativePlayer" hidden>隐藏控件</button>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
 
 </div>
@@ -764,6 +768,11 @@ function initCollapsibleCards(){
     toggle.className="card-collapse-toggle";
     toggle.innerHTML='<span class="triangle">▼</span><span class="collapse-title"></span>';
     toggle.querySelector(".collapse-title").textContent=title;
+    const nativeControls=card.querySelector("#toggleNativeControls");
+    if(nativeControls){
+      toggle.classList.add("video-card-header");
+      toggle.appendChild(nativeControls);
+    }
     if(movable.includes(card)){
       const actions=document.createElement("span");actions.className="card-move-actions";
       for(const [direction,label] of [[-1,"↑"],[1,"↓"]]){
@@ -797,7 +806,7 @@ function initCollapsibleCards(){
     }
 
     toggle.addEventListener("click",(event)=>{
-       if(event.target.closest(".card-move-actions"))return;
+      if(event.target.closest(".card-move-actions,#toggleNativeControls"))return;
       const collapsed=card.classList.toggle("collapsed");
       toggle.setAttribute("aria-expanded",collapsed?"false":"true");
       saved[id]=collapsed;
