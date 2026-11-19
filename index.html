@@ -245,6 +245,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 </div>
 <div class="card">
   <div class="ytbox"><div id="player"></div><video id="nativePlayer" controls playsinline preload="metadata"></video></div>
+  <button type="button" class="secondary" id="toggleNativeControls" aria-controls="nativePlayer" style="margin-top:8px" hidden>隐藏控件</button>
   <div id="videoStatus" class="status">可加载 YouTube、本地视频或网络视频直链</div>
 
 </div>
@@ -2178,6 +2179,12 @@ window.addEventListener("pagehide",()=>savePlaybackPosition(true));
 document.addEventListener("visibilitychange",()=>{if(document.hidden)savePlaybackPosition(true);});
 setInterval(()=>savePlaybackPosition(),1000);
 
+$("#toggleNativeControls").onclick=function(){
+  const video=$("#nativePlayer");
+  video.controls=!video.controls;
+  this.textContent=video.controls?"隐藏控件":"显示控件";
+};
+
 let nativePlayerAdapter=null;
 let nativeSourceName="本地视频";
 function ensureNativePlayer(){
@@ -2245,6 +2252,7 @@ function loadNativeVideo(src,key,name,type){
   currentSourceType=type;currentSourceKey=key;nativeSourceName=name||"媒体";
   const video=$("#nativePlayer");
   $("#player").style.display="none";video.style.display="block";
+  $("#toggleNativeControls").hidden=false;
   if(nativeObjectUrl&&nativeObjectUrl!==src){URL.revokeObjectURL(nativeObjectUrl);nativeObjectUrl="";}
   if(type==="local"||type==="audio")nativeObjectUrl=src;
   player=ensureNativePlayer();playerReady=false;setPlayerEnabled(false);
@@ -2274,6 +2282,7 @@ function createOrLoadVideo(id){
   lastMonitoredTime=null;lastMonitorWallTime=0;
   currentSourceType="youtube";currentSourceKey=id;
   const native=$("#nativePlayer");native.pause();native.style.display="none";
+  $("#toggleNativeControls").hidden=true;
   $("#player").style.display="block";
   if(youtubePlayer && typeof youtubePlayer.loadVideoById==="function"){
     cancelSegmentPlay();
@@ -2429,6 +2438,7 @@ $("#localVideoFile").onchange=async function(){
     currentSourceType="local";currentSourceKey=selectedKey;
     $("#player").style.display="none";
     video.style.display="block";
+    $("#toggleNativeControls").hidden=false;
     video.src=src;video.load();
     $("#videoStatus").textContent="视频已选择；如未自动播放，请点击视频上的播放键。字幕初始化异常："+(e?.message||e);
   }
