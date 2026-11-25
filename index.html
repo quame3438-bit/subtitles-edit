@@ -3999,8 +3999,22 @@ $("#next").onclick=function(){
   playSelectedSentence();
 };
 
+let lastSentenceButtonClick=0;
+let lastSentenceButtonCue=null;
 $("#playCurrent").onclick=function(){
-  enforceSingleSentenceMode();
+  if(!playerReady||!subs[current])return;
+  const time=performance.now();
+  const cue=subs[current];
+  const doubleClick=lastSentenceButtonCue===cue && time-lastSentenceButtonClick<=400;
+  lastSentenceButtonClick=doubleClick?0:time;
+  lastSentenceButtonCue=doubleClick?null:cue;
+  if(doubleClick){
+    enforceSingleSentenceMode();
+    playSelectedSentence();
+    return;
+  }
+  // Preserve a pending start so a single tap can pause it correctly.
+  if(!sentenceStartTimer)enforceSingleSentenceMode();
   toggleSelectedSentencePlayback();
 };
 
@@ -4802,7 +4816,7 @@ renderAll();
 
 let lastTouchEnd = 0;
 document.addEventListener("touchend", function(e){
-  if(e.target&&e.target.closest&&e.target.closest("textarea,input,#currentSubtitle,[contenteditable='true']"))return;
+  if(e.target&&e.target.closest&&e.target.closest("textarea,input,#currentSubtitle,#playCurrent,[contenteditable='true']"))return;
   const now = Date.now();
   if(now - lastTouchEnd <= 300){
     e.preventDefault();
