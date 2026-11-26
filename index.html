@@ -3795,7 +3795,7 @@ window.removeSub=function(i){
 };
 
 function cancelSentencePlay(){
-  if(cutState)cutState.run=null;
+  if(cutState)clearSentenceCutRun();
   sentencePlaybackGeneration++;
   sentenceEndHandling=false;
   sentenceHardStopIndex=-1;
@@ -3912,7 +3912,7 @@ function enforceSingleSentenceMode(){
 }
 
 function playSelectedSentence(resetRunCount=true){
-  if(cutState)cutState.run=null;
+  if(cutState)clearSentenceCutRun();
   if(!playerReady||!subs.length)return;
   const generation=++sentencePlaybackGeneration;
   sentenceEndHandling=false;
@@ -5018,6 +5018,16 @@ function saveSentenceCuts(){
   renderSentenceCuts();
 }
 
+function updateCutPlaybackButton(){
+  const run=cutState.run;
+  $("#playSelectedCutParts").textContent=run && !run.paused ? "暂停选中" : "播放选中";
+}
+
+function clearSentenceCutRun(){
+  cutState.run=null;
+  updateCutPlaybackButton();
+}
+
 function startSentenceCutPart(){
   const run=cutState.run;
   const [start]=run.parts[run.position];
@@ -5044,6 +5054,7 @@ function playSentenceCuts(){
   sentenceCaptionLocked=true;
   lockedSentenceIndex=current;
   $("#sentenceCutStatus").textContent="播放第 "+indices.map(i=>i+1).join("、")+" 段";
+  updateCutPlaybackButton();
   startSentenceCutPart();
 }
 
@@ -5055,6 +5066,7 @@ function monitorSentenceCuts(time){
     pause();
     return false;
   }
+  if(run.paused)return true;
   if(run.resumeAt){
     if(Date.now()>=run.resumeAt){
       run.resumeAt=0;
@@ -5068,7 +5080,7 @@ function monitorSentenceCuts(time){
     else if(Date.now()<run.seekDeadline)return true;
     else{
       pause();
-      cutState.run=null;
+      clearSentenceCutRun();
       $("#sentenceCutStatus").textContent="定位未完成，重新点编号可重试";
       return true;
     }
@@ -5085,7 +5097,7 @@ function monitorSentenceCuts(time){
       run.resumeAt=Date.now()+run.interval;
       $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍 · 等待重播`;
     }else{
-      cutState.run=null;
+      clearSentenceCutRun();
       $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍`;
     }
   }
@@ -5129,7 +5141,26 @@ function requestSelectedCutPlayback(){
   }
   playSentenceCuts();
 }
-$("#playSelectedCutParts").onclick=requestSelectedCutPlayback;
+$("#playSelectedCutParts").onclick=()=>{
+  const run=cutState.run;
+  if(!run || run.key!==sentenceCutKey()){
+    requestSelectedCutPlayback();
+    return;
+  }
+  if(run.paused){
+    run.paused=false;
+    if(run.resumeAt)run.resumeAt=Date.now()+run.remainingWait;
+    else if(run.seekDeadline)startSentenceCutPart();
+    else play();
+    $("#sentenceCutStatus").textContent="继续播放选中小段";
+  }else{
+    run.paused=true;
+    if(run.resumeAt)run.remainingWait=Math.max(0,run.resumeAt-Date.now());
+    pause();
+    $("#sentenceCutStatus").textContent="选中小段已暂停";
+  }
+  updateCutPlaybackButton();
+};
 $("#deleteSentenceCuts").onclick=()=>{
   if(cutState.run){cancelSentencePlay();pause();}
   cutState.ends=cutState.selected.size
