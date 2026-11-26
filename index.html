@@ -1003,7 +1003,7 @@ $("#sentenceAutoMode").value=["continuous","cut"].includes(savedSentenceAutoMode
 const savedSentenceAutoInterval=localStorage.getItem(SENTENCE_AUTO_INTERVAL_KEY);
 $("#sentenceAutoInterval").value=["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(savedSentenceAutoInterval)
   ? savedSentenceAutoInterval
-  : "0";
+  : "1";
 const savedSentencePlayTimes=localStorage.getItem(SENTENCE_PLAY_TIMES_KEY);
 $("#sentencePlayTimes").value=["infinite","1","2","3","4","5","6","7","8","9","10","20","30","40","50","60","70","80","90","100"].includes(savedSentencePlayTimes)
   ? savedSentencePlayTimes
@@ -1011,7 +1011,7 @@ $("#sentencePlayTimes").value=["infinite","1","2","3","4","5","6","7","8","9","1
 function sentencePlaySettingSummary(){
   const mode=$("#sentenceAutoMode").value;
   const times=$("#sentencePlayTimes").value;
-  if(mode==="cut")return `本段播放 · ${times==="infinite"?"无限重复":times+"遍"} · 播放「本句切割」中选中的小段`;
+  if(mode==="cut")return `本段播放 · ${times==="infinite"?"无限重复":times+"遍"} · 间隔 ${$("#sentenceAutoInterval").selectedOptions[0].textContent}`;
   if(times==="infinite")return `${mode==="continuous"?"连续播放":"本句播放"} · 无限：当前句无限重复`;
   return mode==="continuous"
     ? `连续播放 · ${times}遍：每句播放${times}遍后进入下一句`
@@ -5087,19 +5087,24 @@ function monitorSentenceCuts(time){
   }
   if(time<end-0.02)return true;
   run.position++;
-  if(run.position<run.parts.length)startSentenceCutPart();
-  else{
+  const roundFinished=run.position===run.parts.length;
+  if(roundFinished){
+    run.completed++;
+    run.position=0;
+  }
+  if(run.completed>=run.repeats){
     pause();
     seekKeepingSentence(end,current);
-    run.completed++;
-    if(run.completed<run.repeats){
-      run.position=0;
-      run.resumeAt=Date.now()+run.interval;
-      $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍 · 等待重播`;
-    }else{
-      clearSentenceCutRun();
-      $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍`;
-    }
+    clearSentenceCutRun();
+    $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍`;
+  }else if(run.interval>0){
+    pause();
+    seekKeepingSentence(end,current);
+    run.resumeAt=Date.now()+run.interval;
+    const nextAction=roundFinished?"重播选中小段":"播放下一个选中的小段";
+    $("#sentenceCutStatus").textContent=`${run.interval/1000} 秒后${nextAction}`;
+  }else{
+    startSentenceCutPart();
   }
   return true;
 }
