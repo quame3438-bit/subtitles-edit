@@ -4963,12 +4963,9 @@ function renderSentenceCuts(){
   }
   const row=$("#sentenceCutNumbers");
   row.replaceChildren();
-  const cue=subs[current];
-  row.style.gridTemplateColumns=cutState.ends.map((end,index)=>{
-    const start=index ? cutState.ends[index-1] : cue.start;
-    const durationMs=Math.max(1,Math.round((end-start)*1000));
-    return `minmax(36px, ${durationMs}fr)`;
-  }).join(" ");
+  row.style.gridTemplateColumns=cutState.ends.length
+    ? `repeat(${cutState.ends.length}, minmax(36px, 1fr))`
+    : "";
   cutState.ends.forEach((_,index)=>{
     const button=document.createElement("button");
     button.type="button";
