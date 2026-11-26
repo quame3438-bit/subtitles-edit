@@ -942,6 +942,17 @@ for(const [seconds,label] of [[20,"20 秒"],[30,"30 秒"],[60,"1 分钟"],[180,"
     $(id).appendChild(o);
   }
 }
+for(const id of ["rewindStep","forwardStep"]){
+  const select=document.getElementById(id);
+  const key="ytPlaybackStep:"+id;
+  try{
+    const saved=localStorage.getItem(key);
+    if(Array.from(select.options).some(option=>option.value===saved))select.value=saved;
+  }catch{}
+  select.addEventListener("change",()=>{
+    try{localStorage.setItem(key,select.value);}catch{}
+  });
+}
 for(let n=2;n<=20;n++){
   const value=n/10;
   const o=document.createElement("option");
