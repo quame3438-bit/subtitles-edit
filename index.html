@@ -4972,12 +4972,15 @@ function renderSentenceCuts(){
     }catch{cutState.ends=[];}
     $("#sentenceCutStatus").textContent="播放到切点时点「分割」";
   }
+  const cue=subs[current];
+  cutState.ends=cutState.ends.filter(time=>cue && time>cue.start && time<cue.end);
+  const partCount=cutState.ends.length ? cutState.ends.length+1 : 0;
   const row=$("#sentenceCutNumbers");
   row.replaceChildren();
-  row.style.gridTemplateColumns=cutState.ends.length
-    ? `repeat(${cutState.ends.length}, minmax(36px, 1fr))`
+  row.style.gridTemplateColumns=partCount
+    ? `repeat(${partCount}, minmax(36px, 1fr))`
     : "";
-  cutState.ends.forEach((_,index)=>{
+  for(let index=0;index<partCount;index++){
     const button=document.createElement("button");
     button.type="button";
     button.className="secondary";
@@ -4993,7 +4996,7 @@ function renderSentenceCuts(){
       playSentenceCuts();
     };
     row.append(button);
-  });
+  }
   $("#deleteSentenceCuts").disabled=!cutState.ends.length;
 }
 
@@ -5023,7 +5026,7 @@ function playSentenceCuts(){
   cancelSegmentPlay();
   const cue=subs[current];
   const indices=[...cutState.selected].sort((a,b)=>a-b);
-  const parts=indices.map(i=>[i ? cutState.ends[i-1] : cue.start,cutState.ends[i]]);
+  const parts=indices.map(i=>[i ? cutState.ends[i-1] : cue.start,cutState.ends[i]??cue.end]);
   const repeatSelected=$("#sentenceAutoMode").value==="cut";
   const times=$("#sentencePlayTimes").value;
   cutState.run={
@@ -5086,14 +5089,24 @@ $("#addSentenceCut").onclick=()=>{
   renderSentenceCuts();
   const cue=subs[current];
   if(!playerReady||!cue)return;
-  const time=now();
-  const last=cutState.ends.at(-1)??cue.start;
-  if(time<last+0.08||time>cue.end+0.12){
-    $("#sentenceCutStatus").textContent="把播放进度移到上个切点之后、本句结束之前";
+  let time=now();
+  if(!cutState.ends.length && (time<cue.start+0.08 || time>cue.end-0.08)){
+    time=(cue.start+cue.end)/2;
+  }
+  time=Math.round(time*1000)/1000;
+  if([cue.start,...cutState.ends,cue.end].some(point=>Math.abs(point-time)<0.079)){
+    $("#sentenceCutStatus").textContent="请把播放进度移到本句内、离已有切点稍远的位置";
     return;
   }
-  cutState.ends.push(time>cue.end-0.04 ? cue.end : Math.round(time*1000)/1000);
-  $("#sentenceCutStatus").textContent="已记录第 "+cutState.ends.length+" 段";
+  if(time<=cue.start || time>=cue.end){
+    $("#sentenceCutStatus").textContent="请把播放进度移到本句内";
+    return;
+  }
+  if(cutState.run){cancelSentencePlay();pause();}
+  cutState.selected.clear();
+  cutState.ends.push(time);
+  cutState.ends.sort((a,b)=>a-b);
+  $("#sentenceCutStatus").textContent="已分成 "+(cutState.ends.length+1)+" 段";
   saveSentenceCuts();
 };
 function requestSelectedCutPlayback(){
@@ -5108,7 +5121,8 @@ $("#playSelectedCutParts").onclick=requestSelectedCutPlayback;
 $("#deleteSentenceCuts").onclick=()=>{
   if(cutState.run){cancelSentencePlay();pause();}
   cutState.ends=cutState.selected.size
-    ? cutState.ends.filter((_,index)=>!cutState.selected.has(index)) : [];
+    ? cutState.ends.filter((_,index)=>!cutState.selected.has(index) &&
+      !(index===cutState.ends.length-1 && cutState.selected.has(index+1))) : [];
   cutState.selected.clear();
   $("#sentenceCutStatus").textContent="已删除切点";
   saveSentenceCuts();
