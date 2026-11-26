@@ -335,6 +335,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <label>播放模式
       <select id="sentenceAutoMode">
         <option value="single">本句播放</option>
+        <option value="cut">本段播放</option>
         <option value="continuous">连续播放</option>
       </select>
     </label>
@@ -355,7 +356,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
     <button class="secondary needsPlayer" id="playSelectedCutParts">播放选中</button>
     <button class="secondary" id="deleteSentenceCuts">删除</button>
   </div>
-  <div id="sentenceCutNumbers" style="display:flex;gap:6px;overflow-x:auto;padding:6px 2px"></div>
+  <div id="sentenceCutNumbers" style="display:grid;gap:6px;overflow-x:auto;padding:6px 2px"></div>
   <div id="sentenceCutStatus" class="status" aria-live="polite"></div>
 </div>
 
@@ -987,7 +988,7 @@ for(const value of ["infinite",...Array.from({length:10},(_,i)=>String(i+1)),...
   $("#sentencePlayTimes").appendChild(o);
 }
 const savedSentenceAutoMode=localStorage.getItem(SENTENCE_AUTO_MODE_KEY);
-$("#sentenceAutoMode").value=savedSentenceAutoMode==="continuous"?"continuous":"single";
+$("#sentenceAutoMode").value=["continuous","cut"].includes(savedSentenceAutoMode)?savedSentenceAutoMode:"single";
 const savedSentenceAutoInterval=localStorage.getItem(SENTENCE_AUTO_INTERVAL_KEY);
 $("#sentenceAutoInterval").value=["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(savedSentenceAutoInterval)
   ? savedSentenceAutoInterval
@@ -999,6 +1000,7 @@ $("#sentencePlayTimes").value=["infinite","1","2","3","4","5","6","7","8","9","1
 function sentencePlaySettingSummary(){
   const mode=$("#sentenceAutoMode").value;
   const times=$("#sentencePlayTimes").value;
+  if(mode==="cut")return `本段播放 · ${times==="infinite"?"无限重复":times+"遍"} · 播放「本句切割」中选中的小段`;
   if(times==="infinite")return `${mode==="continuous"?"连续播放":"本句播放"} · 无限：当前句无限重复`;
   return mode==="continuous"
     ? `连续播放 · ${times}遍：每句播放${times}遍后进入下一句`
@@ -2111,7 +2113,7 @@ $("#importCompleteJson").onchange=async function(){
       $("#segmentAutoInterval").value=String(data.segmentAutoInterval);
       localStorage.setItem(SEGMENT_AUTO_INTERVAL_KEY,String(data.segmentAutoInterval));
     }
-    if(data.sentenceAutoMode==="single"||data.sentenceAutoMode==="continuous"){
+    if(["single","continuous","cut"].includes(data.sentenceAutoMode)){
       $("#sentenceAutoMode").value=data.sentenceAutoMode;
       localStorage.setItem(SENTENCE_AUTO_MODE_KEY,data.sentenceAutoMode);
     }
@@ -4047,6 +4049,10 @@ let lastSentenceButtonClick=0;
 let lastSentenceButtonCue=null;
 $("#playCurrent").onclick=function(){
   if(!playerReady||!subs[current])return;
+  if($("#sentenceAutoMode").value==="cut"){
+    requestSelectedCutPlayback();
+    return;
+  }
   const time=performance.now();
   const cue=subs[current];
   const doubleClick=lastSentenceButtonCue===cue && time-lastSentenceButtonClick<=400;
@@ -4958,13 +4964,17 @@ function renderSentenceCuts(){
   const row=$("#sentenceCutNumbers");
   row.replaceChildren();
   const cue=subs[current];
-  cutState.ends.forEach((end,index)=>{
+  row.style.gridTemplateColumns=cutState.ends.map((end,index)=>{
     const start=index ? cutState.ends[index-1] : cue.start;
+    const durationMs=Math.max(1,Math.round((end-start)*1000));
+    return `minmax(36px, ${durationMs}fr)`;
+  }).join(" ");
+  cutState.ends.forEach((_,index)=>{
     const button=document.createElement("button");
     button.type="button";
     button.className="secondary";
-    button.style.flex=Math.max(0.08,end-start)+" 1 0";
-    button.style.minWidth="36px";
+    button.style.minWidth="0";
+    button.style.paddingInline="0";
     button.textContent=String(index+1);
     button.setAttribute("aria-pressed",String(cutState.selected.has(index)));
     if(cutState.selected.has(index))button.style.outline="2px solid #38bdf8";
@@ -5006,7 +5016,13 @@ function playSentenceCuts(){
   const cue=subs[current];
   const indices=[...cutState.selected].sort((a,b)=>a-b);
   const parts=indices.map(i=>[i ? cutState.ends[i-1] : cue.start,cutState.ends[i]]);
-  cutState.run={key:cutState.key,parts,position:0,seekDeadline:0};
+  const repeatSelected=$("#sentenceAutoMode").value==="cut";
+  const times=$("#sentencePlayTimes").value;
+  cutState.run={
+    key:cutState.key,parts,position:0,seekDeadline:0,resumeAt:0,completed:0,
+    repeats:repeatSelected ? (times==="infinite" ? Infinity : Number(times)||1) : 1,
+    interval:repeatSelected ? (Number($("#sentenceAutoInterval").value)||0)*1000 : 0
+  };
   sentenceCaptionLocked=true;
   lockedSentenceIndex=current;
   $("#sentenceCutStatus").textContent="播放第 "+indices.map(i=>i+1).join("、")+" 段";
@@ -5020,6 +5036,13 @@ function monitorSentenceCuts(time){
     cancelSentencePlay();
     pause();
     return false;
+  }
+  if(run.resumeAt){
+    if(Date.now()>=run.resumeAt){
+      run.resumeAt=0;
+      startSentenceCutPart();
+    }
+    return true;
   }
   const [start,end]=run.parts[run.position];
   if(run.seekDeadline){
@@ -5037,9 +5060,16 @@ function monitorSentenceCuts(time){
   if(run.position<run.parts.length)startSentenceCutPart();
   else{
     pause();
-    cutState.run=null;
     seekKeepingSentence(end,current);
-    $("#sentenceCutStatus").textContent="选中小段已播完";
+    run.completed++;
+    if(run.completed<run.repeats){
+      run.position=0;
+      run.resumeAt=Date.now()+run.interval;
+      $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍 · 等待重播`;
+    }else{
+      cutState.run=null;
+      $("#sentenceCutStatus").textContent=`选中小段已播完 ${run.completed} 遍`;
+    }
   }
   return true;
 }
@@ -5058,13 +5088,15 @@ $("#addSentenceCut").onclick=()=>{
   $("#sentenceCutStatus").textContent="已记录第 "+cutState.ends.length+" 段";
   saveSentenceCuts();
 };
-$("#playSelectedCutParts").onclick=()=>{
+function requestSelectedCutPlayback(){
+  renderSentenceCuts();
   if(!cutState.selected.size){
     $("#sentenceCutStatus").textContent="请先点选要播放的编号";
     return;
   }
   playSentenceCuts();
-};
+}
+$("#playSelectedCutParts").onclick=requestSelectedCutPlayback;
 $("#deleteSentenceCuts").onclick=()=>{
   if(cutState.run){cancelSentencePlay();pause();}
   cutState.ends=cutState.selected.size
