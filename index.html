@@ -348,6 +348,17 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="sentenceStatus" class="status">本句播放 · 1遍：播放1遍后停止</div>
 </div>
 
+<div class="card" id="sentenceCutCard">
+  <b>本句切割</b>
+  <div class="controls" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px">
+    <button class="secondary needsPlayer" id="addSentenceCut">分割</button>
+    <button class="secondary needsPlayer" id="playWholeCutSentence">播放本句</button>
+    <button class="secondary" id="deleteSentenceCuts">删除</button>
+  </div>
+  <div id="sentenceCutNumbers" style="display:flex;gap:6px;overflow-x:auto;padding:6px 2px"></div>
+  <div id="sentenceCutStatus" class="status" aria-live="polite"></div>
+</div>
+
 <div class="card" id="startEndSettingCard">
   <b>开始结束设定</b>
   <div class="controls">
@@ -3498,6 +3509,7 @@ if(document.fonts?.ready)document.fonts.ready.then(scheduleSubtitleFit);
 scheduleSubtitleFit();
 
 function updateTop(){
+  if(cutState && cutState.key!==sentenceCutKey())renderSentenceCuts();
   updateSegmentPlayCount();
   $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
   const subtitleEl=$("#currentSubtitle");
@@ -3770,6 +3782,7 @@ window.removeSub=function(i){
 };
 
 function cancelSentencePlay(){
+  if(cutState)cutState.run=null;
   sentencePlaybackGeneration++;
   sentenceEndHandling=false;
   sentenceHardStopIndex=-1;
@@ -3886,6 +3899,7 @@ function enforceSingleSentenceMode(){
 }
 
 function playSelectedSentence(resetRunCount=true){
+  if(cutState)cutState.run=null;
   if(!playerReady||!subs.length)return;
   const generation=++sentencePlaybackGeneration;
   sentenceEndHandling=false;
@@ -4449,6 +4463,7 @@ function startMonitor(){
     const elapsed=lastMonitorWallTime ? (wallNow-lastMonitorWallTime)/1000 : 0;
     lastMonitoredTime=t;
     lastMonitorWallTime=wallNow;
+    if(monitorSentenceCuts(t))return;
 
     // “播放本段”期间锁定当前段落字幕，到结束点先停止，不能提前跳到下一段。
     if(false && segmentPlayMode && playingSegmentIndex>=0 && videoSegments[playingSegmentIndex]){
@@ -4923,6 +4938,139 @@ renderAll();
   input.addEventListener("input",()=>{if(input.value.trim())runSearch();else{results.innerHTML="";status.textContent="搜索当前导入的全部字幕，结果会全部显示在下面";}});
 })();
 
+
+var cutState={key:null,ends:[],selected:new Set(),run:null};
+function sentenceCutKey(){
+  const cue=subs[current];
+  return cue ? JSON.stringify([subtitleStorageKey(),cue.start,cue.end,cue.text]) : "";
+}
+
+function renderSentenceCuts(){
+  const key=sentenceCutKey();
+  if(cutState.key!==key){
+    cutState.key=key;
+    cutState.selected.clear();
+    try{
+      cutState.ends=key ? JSON.parse(localStorage.getItem("sentence-cuts:"+key)||"[]") : [];
+    }catch{cutState.ends=[];}
+    $("#sentenceCutStatus").textContent="播放到切点时点「分割」";
+  }
+  const row=$("#sentenceCutNumbers");
+  row.replaceChildren();
+  const cue=subs[current];
+  cutState.ends.forEach((end,index)=>{
+    const start=index ? cutState.ends[index-1] : cue.start;
+    const button=document.createElement("button");
+    button.type="button";
+    button.className="secondary";
+    button.style.flex=Math.max(0.08,end-start)+" 1 0";
+    button.style.minWidth="36px";
+    button.textContent=String(index+1);
+    button.setAttribute("aria-pressed",String(cutState.selected.has(index)));
+    if(cutState.selected.has(index))button.style.outline="2px solid #38bdf8";
+    button.onclick=()=>{
+      if(cutState.selected.has(index))cutState.selected.delete(index);
+      else cutState.selected.add(index);
+      renderSentenceCuts();
+      playSentenceCuts();
+    };
+    row.append(button);
+  });
+  $("#deleteSentenceCuts").disabled=!cutState.ends.length;
+}
+
+function saveSentenceCuts(){
+  try{
+    const key="sentence-cuts:"+cutState.key;
+    if(cutState.ends.length)localStorage.setItem(key,JSON.stringify(cutState.ends));
+    else localStorage.removeItem(key);
+  }catch{
+    $("#sentenceCutStatus").textContent="切点已更新，本次浏览器无法保存";
+  }
+  renderSentenceCuts();
+}
+
+function startSentenceCutPart(){
+  const run=cutState.run;
+  const [start]=run.parts[run.position];
+  run.seekDeadline=Date.now()+1500;
+  seekKeepingSentence(start,current);
+  play();
+}
+
+function playSentenceCuts(){
+  cancelSentencePlay();
+  pause();
+  if(!playerReady||!cutState.selected.size)return;
+  cancelSegmentPlay();
+  const cue=subs[current];
+  const indices=[...cutState.selected].sort((a,b)=>a-b);
+  const parts=indices.map(i=>[i ? cutState.ends[i-1] : cue.start,cutState.ends[i]]);
+  cutState.run={key:cutState.key,parts,position:0,seekDeadline:0};
+  sentenceCaptionLocked=true;
+  lockedSentenceIndex=current;
+  $("#sentenceCutStatus").textContent="播放第 "+indices.map(i=>i+1).join("、")+" 段";
+  startSentenceCutPart();
+}
+
+function monitorSentenceCuts(time){
+  const run=cutState.run;
+  if(!run)return false;
+  if(run.key!==sentenceCutKey()){
+    cancelSentencePlay();
+    pause();
+    return false;
+  }
+  const [start,end]=run.parts[run.position];
+  if(run.seekDeadline){
+    if(time>=start-0.12&&time<end)run.seekDeadline=0;
+    else if(Date.now()<run.seekDeadline)return true;
+    else{
+      pause();
+      cutState.run=null;
+      $("#sentenceCutStatus").textContent="定位未完成，重新点编号可重试";
+      return true;
+    }
+  }
+  if(time<end-0.02)return true;
+  run.position++;
+  if(run.position<run.parts.length)startSentenceCutPart();
+  else{
+    pause();
+    cutState.run=null;
+    seekKeepingSentence(end,current);
+    $("#sentenceCutStatus").textContent="选中小段已播完";
+  }
+  return true;
+}
+
+$("#addSentenceCut").onclick=()=>{
+  renderSentenceCuts();
+  const cue=subs[current];
+  if(!playerReady||!cue)return;
+  const time=now();
+  const last=cutState.ends.at(-1)??cue.start;
+  if(time<last+0.08||time>cue.end+0.12){
+    $("#sentenceCutStatus").textContent="把播放进度移到上个切点之后、本句结束之前";
+    return;
+  }
+  cutState.ends.push(time>cue.end-0.04 ? cue.end : Math.round(time*1000)/1000);
+  $("#sentenceCutStatus").textContent="已记录第 "+cutState.ends.length+" 段";
+  saveSentenceCuts();
+};
+$("#playWholeCutSentence").onclick=()=>{
+  enforceSingleSentenceMode();
+  playSelectedSentence();
+};
+$("#deleteSentenceCuts").onclick=()=>{
+  if(cutState.run){cancelSentencePlay();pause();}
+  cutState.ends=cutState.selected.size
+    ? cutState.ends.filter((_,index)=>!cutState.selected.has(index)) : [];
+  cutState.selected.clear();
+  $("#sentenceCutStatus").textContent="已删除切点";
+  saveSentenceCuts();
+};
+renderSentenceCuts();
 </script>
 
 </body>
