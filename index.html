@@ -4991,7 +4991,14 @@ function renderSentenceCuts(){
     if(cutState.selected.has(index))button.style.outline="2px solid #38bdf8";
     button.onclick=()=>{
       if(cutState.selected.has(index))cutState.selected.delete(index);
-      else cutState.selected.add(index);
+      else{
+        cutState.selected.add(index);
+        const mode=$("#sentenceAutoMode");
+        if(mode.value!=="cut"){
+          mode.value="cut";
+          mode.dispatchEvent(new Event("change"));
+        }
+      }
       renderSentenceCuts();
       playSentenceCuts();
     };
