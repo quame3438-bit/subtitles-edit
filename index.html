@@ -930,7 +930,7 @@ for(let i=1;i<=10;i++){
   for(const id of ["#rewindStep","#forwardStep"]){
     const o=document.createElement("option");
     o.value=i; o.textContent=i+" 秒";
-    if(i===5)o.selected=true;
+    if(i===1)o.selected=true;
     $(id).appendChild(o);
   }
 }
@@ -2665,10 +2665,10 @@ function seekByStep(delta){
 }
 
 $("#rewind").onclick=function(){
-  seekByStep(-(Number($("#rewindStep").value)||5));
+  seekByStep(-(Number($("#rewindStep").value)||1));
 };
 $("#forward").onclick=function(){
-  seekByStep(Number($("#forwardStep").value)||5);
+  seekByStep(Number($("#forwardStep").value)||1);
 };
 $("#togglePlay").onclick=function(){
   const wasPlaying=isPlaying();
@@ -5089,23 +5089,28 @@ $("#addSentenceCut").onclick=()=>{
   renderSentenceCuts();
   const cue=subs[current];
   if(!playerReady||!cue)return;
-  let time=now();
-  if(!cutState.ends.length && (time<cue.start+0.08 || time>cue.end-0.08)){
-    time=(cue.start+cue.end)/2;
-  }
-  time=Math.round(time*1000)/1000;
-  if([cue.start,...cutState.ends,cue.end].some(point=>Math.abs(point-time)<0.079)){
-    $("#sentenceCutStatus").textContent="请把播放进度移到本句内、离已有切点稍远的位置";
+  const boundaries=[cue.start,...cutState.ends,cue.end];
+  const playhead=now();
+  const run=cutState.run;
+  const activePart=run?.key===cutState.key && !run.resumeAt ? run.parts[run.position] : null;
+  let index=activePart ? boundaries.indexOf(activePart[0]) : -1;
+  if(index<0 && cutState.selected.size===1)index=[...cutState.selected][0];
+  if(index<0)index=boundaries.findIndex((start,i)=>playhead>=start && playhead<boundaries[i+1]);
+  if(index<0 && !cutState.ends.length)index=0;
+  if(index<0){
+    $("#sentenceCutStatus").textContent="请先选择要分割的小段";
     return;
   }
-  if(time<=cue.start || time>=cue.end){
-    $("#sentenceCutStatus").textContent="请把播放进度移到本句内";
+  const start=boundaries[index],end=boundaries[index+1];
+  if(end-start<0.16){
+    $("#sentenceCutStatus").textContent="这一小段太短，无法继续分割";
     return;
   }
-  if(cutState.run){cancelSentencePlay();pause();}
+  const time=playhead>=start+0.08 && playhead<=end-0.08
+    ? playhead : (start+end)/2;
+  if(run){cancelSentencePlay();pause();}
   cutState.selected.clear();
-  cutState.ends.push(time);
-  cutState.ends.sort((a,b)=>a-b);
+  cutState.ends.splice(index,0,Math.round(time*1000)/1000);
   $("#sentenceCutStatus").textContent="已分成 "+(cutState.ends.length+1)+" 段";
   saveSentenceCuts();
 };
