@@ -352,7 +352,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <b>本句切割</b>
   <div class="controls" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px">
     <button class="secondary needsPlayer" id="addSentenceCut">分割</button>
-    <button class="secondary needsPlayer" id="playWholeCutSentence">播放本句</button>
+    <button class="secondary needsPlayer" id="playSelectedCutParts">播放选中</button>
     <button class="secondary" id="deleteSentenceCuts">删除</button>
   </div>
   <div id="sentenceCutNumbers" style="display:flex;gap:6px;overflow-x:auto;padding:6px 2px"></div>
@@ -5058,9 +5058,12 @@ $("#addSentenceCut").onclick=()=>{
   $("#sentenceCutStatus").textContent="已记录第 "+cutState.ends.length+" 段";
   saveSentenceCuts();
 };
-$("#playWholeCutSentence").onclick=()=>{
-  enforceSingleSentenceMode();
-  playSelectedSentence();
+$("#playSelectedCutParts").onclick=()=>{
+  if(!cutState.selected.size){
+    $("#sentenceCutStatus").textContent="请先点选要播放的编号";
+    return;
+  }
+  playSentenceCuts();
 };
 $("#deleteSentenceCuts").onclick=()=>{
   if(cutState.run){cancelSentencePlay();pause();}
