@@ -1003,7 +1003,7 @@ $("#sentenceAutoMode").value=["continuous","cut"].includes(savedSentenceAutoMode
 const savedSentenceAutoInterval=localStorage.getItem(SENTENCE_AUTO_INTERVAL_KEY);
 $("#sentenceAutoInterval").value=["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(savedSentenceAutoInterval)
   ? savedSentenceAutoInterval
-  : "1";
+  : "0";
 const savedSentencePlayTimes=localStorage.getItem(SENTENCE_PLAY_TIMES_KEY);
 $("#sentencePlayTimes").value=["infinite","1","2","3","4","5","6","7","8","9","10","20","30","40","50","60","70","80","90","100"].includes(savedSentencePlayTimes)
   ? savedSentencePlayTimes
@@ -2271,6 +2271,10 @@ function ensureNativePlayer(){
     const t=Number(video.currentTime)||0;
     lastMonitoredTime=t;
     lastMonitorWallTime=Date.now();
+    if(cutState?.run?.seekDeadline){
+      monitorSentenceCuts(t);
+      return;
+    }
     if(Date.now()>programmaticSeekUntil)syncCaptionsAfterUserSeek(t);
   });
   video.addEventListener("error",()=>{
@@ -5030,11 +5034,11 @@ function clearSentenceCutRun(){
   updateCutPlaybackButton();
 }
 
-function startSentenceCutPart(){
+function startSentenceCutPart(keepPlaying=false){
   const run=cutState.run;
   const [start]=run.parts[run.position];
   run.seekDeadline=Date.now()+1500;
-  pause();
+  if(!keepPlaying)pause();
   seekKeepingSentence(start,current);
 }
 
@@ -5086,7 +5090,7 @@ function monitorSentenceCuts(time){
     const nativeSeeking=currentSourceType!=="youtube"&&$("#nativePlayer").seeking;
     if(!nativeSeeking&&time>=start-0.12&&time<end-0.02){
       run.seekDeadline=0;
-      play();
+      if(!isPlaying())play();
     }else if(Date.now()<run.seekDeadline)return true;
     else{
       pause();
@@ -5114,7 +5118,12 @@ function monitorSentenceCuts(time){
     const nextAction=roundFinished?"重播选中小段":"播放下一个选中的小段";
     $("#sentenceCutStatus").textContent=`${run.interval/1000} 秒后${nextAction}`;
   }else{
-    startSentenceCutPart();
+    const [nextStart,nextEnd]=run.parts[run.position];
+    const playing=isPlaying();
+    // Adjacent selected parts share a boundary and can use the same playback.
+    if(!playing||nextStart!==end||time>=nextEnd-0.02){
+      startSentenceCutPart(playing);
+    }
   }
   return true;
 }
