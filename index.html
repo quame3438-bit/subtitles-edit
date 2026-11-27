@@ -4956,7 +4956,7 @@ renderAll();
 
 let lastTouchEnd = 0;
 document.addEventListener("touchend", function(e){
-  if(e.target&&e.target.closest&&e.target.closest("textarea,input,#currentSubtitle,#playCurrent,[contenteditable='true']"))return;
+  if(e.target&&e.target.closest&&e.target.closest("textarea,input,#currentSubtitle,#playCurrent,#sentenceCutNumbers button,[contenteditable='true']"))return;
   const now = Date.now();
   if(now - lastTouchEnd <= 300){
     e.preventDefault();
@@ -5086,9 +5086,12 @@ function renderSentenceCuts(){
     button.setAttribute("aria-pressed",String(cutState.selected.has(index)));
     if(cutState.target===index)button.setAttribute("data-time-target","");
     button.onclick=()=>{
-      if(cutState.selected.has(index))cutState.selected.delete(index);
-      else cutState.selected.add(index);
-      cutState.target=index;
+      if(cutState.selected.delete(index)){
+        cutState.target=[...cutState.selected].at(-1)??null;
+      }else{
+        cutState.selected.add(index);
+        cutState.target=index;
+      }
       $("#cueTimeStatus").textContent="";
       renderSentenceCuts();
       playSentenceCuts();
@@ -5142,7 +5145,11 @@ function playSentenceCuts(){
     pause();
   }
   const cue=subs[current];
-  if(!playerReady||!cue||!cutState.selected.size)return;
+  if(!cutState.selected.size){
+    $("#sentenceCutStatus").textContent="未选中小段";
+    return;
+  }
+  if(!playerReady||!cue)return;
   const indices=[...cutState.selected].sort((a,b)=>a-b);
   const ranges=sentenceCutParts();
   const parts=indices.map(i=>[ranges[i].start,ranges[i].end]);
@@ -5253,7 +5260,7 @@ $("#addSentenceCut").onclick=()=>{
     cutState.overrides[JSON.stringify([part.baseStart,split])]=[part.start,split];
     cutState.overrides[JSON.stringify([split,part.baseEnd])]=[split,part.end];
   }
-  cutState.target=index+1;
+  cutState.target=null;
   $("#cueTimeStatus").textContent="";
   $("#sentenceCutStatus").textContent="已分成 "+(cutState.ends.length+1)+" 段";
   saveSentenceCuts();
