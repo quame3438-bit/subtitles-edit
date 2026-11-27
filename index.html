@@ -4450,6 +4450,7 @@ function normalizeShortcutCode(e){
   const letter=e.key?.toLowerCase();
   if(e.code==="KeyQ"||letter==="q"||(!e.code&&e.keyCode===81))return "KeyQ";
   if(e.code==="KeyW"||letter==="w"||(!e.code&&e.keyCode===87))return "KeyW";
+  if(e.code==="KeyE"||letter==="e"||(!e.code&&e.keyCode===69))return "KeyE";
   if(e.code){
     // 部分 iPhone/iPad 会把外接小键盘数字报告成 Digit，桥接状态下统一按小键盘处理。
     if(isAppleTouchDevice && keyboardBridge && e.target===keyboardBridge){
@@ -4488,7 +4489,7 @@ function normalizeShortcutCode(e){
 const heldCueShortcuts=new Set();
 function handleHardwareShortcut(e){
   const code=normalizeShortcutCode(e);
-  const cueShortcut=code==="KeyQ"||code==="KeyW";
+  const cueShortcut=code==="KeyQ"||code==="KeyW"||code==="KeyE";
   if(cueShortcut&&e.repeat&&heldCueShortcuts.has(code)){
     e.preventDefault();
     e.stopPropagation();
@@ -4515,6 +4516,7 @@ function handleHardwareShortcut(e){
     Numpad9:()=>$("#next").click(),
     KeyQ:()=>$("#splitCurrentCue").click(),
     KeyW:()=>$("#mergeNextCue").click(),
+    KeyE:()=>$("#addSentenceCut").click(),
     ArrowUp:()=>adjustPlayerVolume(2),
     ArrowDown:()=>adjustPlayerVolume(-2)
   };
@@ -4529,7 +4531,7 @@ function handleHardwareShortcut(e){
   if(isAppleTouchDevice && keyboardBridge && target===keyboardBridge){
     keyboardBridge.value="";
     if(keyboardBridgeBadge){
-      const label=code==="KeyQ"?"分割":code==="KeyW"?"合并":code;
+      const label=code==="KeyQ"?"分割":code==="KeyW"?"合并":code==="KeyE"?"本句切割":code;
       keyboardBridgeBadge.textContent="⌨️ 小键盘：已响应 "+label;
     }
   }
