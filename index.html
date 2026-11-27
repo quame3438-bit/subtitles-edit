@@ -1020,8 +1020,10 @@ function sentencePlaySettingSummary(){
 $("#sentenceStatus").textContent=sentencePlaySettingSummary();
 $("#sentenceAutoMode").onchange=function(){
   localStorage.setItem(SENTENCE_AUTO_MODE_KEY,this.value);
-  pause();
   cancelSentencePlay();
+  cancelSegmentPlay();
+  pause();
+  updatePlayCurrentButtonState();
   $("#sentenceStatus").textContent=sentencePlaySettingSummary();
 };
 $("#sentenceAutoInterval").onchange=function(){
@@ -2125,8 +2127,9 @@ $("#importCompleteJson").onchange=async function(){
       localStorage.setItem(SEGMENT_AUTO_INTERVAL_KEY,String(data.segmentAutoInterval));
     }
     if(["single","continuous","cut"].includes(data.sentenceAutoMode)){
-      $("#sentenceAutoMode").value=data.sentenceAutoMode;
-      localStorage.setItem(SENTENCE_AUTO_MODE_KEY,data.sentenceAutoMode);
+      const mode=$("#sentenceAutoMode");
+      mode.value=data.sentenceAutoMode;
+      mode.dispatchEvent(new Event("change"));
     }
     if(["0","1","2","3","4","5","6","7","8","9","10","30","60"].includes(String(data.sentenceAutoInterval))){
       $("#sentenceAutoInterval").value=String(data.sentenceAutoInterval);
@@ -2250,6 +2253,7 @@ function ensureNativePlayer(){
   });
   video.addEventListener("timeupdate",()=>{
     if(!playerReady || currentSourceType==="youtube")return;
+    if(monitorSentenceCuts(video.currentTime))return;
     if(!sentenceCaptionLocked || lockedSentenceIndex<0 || !subs[lockedSentenceIndex])return;
     if($("#sentenceAutoMode").value!=="single")return;
     if(!(playSentenceMode || sentenceEndHandling || sentenceHardStopIndex===lockedSentenceIndex))return;
@@ -2671,6 +2675,10 @@ $("#forward").onclick=function(){
   seekByStep(Number($("#forwardStep").value)||1);
 };
 $("#togglePlay").onclick=function(){
+  if($("#sentenceAutoMode").value==="cut"){
+    $("#playSelectedCutParts").click();
+    return;
+  }
   const wasPlaying=isPlaying();
   cancelSegmentPlay();
   cancelSentencePlay();
@@ -3780,6 +3788,7 @@ window.locate=function(i){
   if(!Number.isInteger(i)||!subs[i])return;
   current=i;
   if(playerReady){
+    if($("#sentenceAutoMode").value==="cut")enforceSingleSentenceMode();
     playSelectedSentence();
   }else{
     updateTop();
@@ -3813,11 +3822,18 @@ function updatePlayCurrentButtonState(){
   const button=$("#playCurrent");
   if(!button)return;
   const sameLockedSentence=sentenceCaptionLocked&&lockedSentenceIndex===current&&!!subs[current];
-  if(!sameLockedSentence||!playSentenceMode){
-    button.textContent="播放本句";
+  const mode=$("#sentenceAutoMode").value;
+  if(mode==="cut"){
+    button.textContent=cutState?.run&&!cutState.run.paused?"暂停本段":"播放本段";
     return;
   }
-  button.textContent=isPlaying()?"暂停本句":"继续本句";
+  const label=mode==="continuous"?"连续播放":"播放本句";
+  if(!sameLockedSentence||!playSentenceMode){
+    button.textContent=label;
+    return;
+  }
+  button.textContent=isPlaying()?(mode==="continuous"?"暂停连续播放":"暂停本句")
+    :(mode==="continuous"?"继续连续播放":"继续本句");
 }
 
 function seekKeepingSentence(time,index){
@@ -3895,25 +3911,17 @@ $("#insertNewCue").onclick=function(){
 };
 
 // 明确按“播放本句/上一句/下一句”时，始终以单句模式运行；
-// 防止历史保存的连续播放设置使本句结束后自动跳到下一句。
 function enforceSingleSentenceMode(){
   const mode=$("#sentenceAutoMode");
-  if(mode && mode.value!=="single"){
-    mode.value="single";
-    localStorage.setItem(SENTENCE_AUTO_MODE_KEY,"single");
-  }
-  if(sentenceAutoTimer){clearTimeout(sentenceAutoTimer);sentenceAutoTimer=null;}
-  if(sentenceStartTimer){clearTimeout(sentenceStartTimer);sentenceStartTimer=null;}
-  sentencePlaybackGeneration++;
-  sentenceEndHandling=false;
-  sentenceHardStopIndex=-1;
-  sentenceHardStopGeneration=-1;
-  $("#sentenceStatus").textContent=sentencePlaySettingSummary();
+  if(mode.value==="single")return;
+  mode.value="single";
+  mode.dispatchEvent(new Event("change"));
 }
 
 function playSelectedSentence(resetRunCount=true){
+  const mode=$("#sentenceAutoMode").value;
+  if(mode==="cut"||!playerReady||!subs[current])return;
   if(cutState)clearSentenceCutRun();
-  if(!playerReady||!subs.length)return;
   const generation=++sentencePlaybackGeneration;
   sentenceEndHandling=false;
   sentenceHardStopIndex=-1;
@@ -3934,8 +3942,9 @@ function playSelectedSentence(resetRunCount=true){
     ? `▶️ 正在连续播放第${lockedSentenceIndex+1}句`
     : `🔒 已锁定第${lockedSentenceIndex+1}句 · 播放本句不会自动换句`;
   sentenceStartTimer=setTimeout(function(){
+    if(generation!==sentencePlaybackGeneration||$("#sentenceAutoMode").value!==mode)return;
     sentenceStartTimer=null;
-    if(generation!==sentencePlaybackGeneration||!sentenceCaptionLocked||!subs[lockedSentenceIndex])return;
+    if(!sentenceCaptionLocked||!subs[lockedSentenceIndex])return;
     playSentenceMode=true;
     play();
     setTimeout(updatePlayCurrentButtonState,60);
@@ -3948,6 +3957,7 @@ function toggleSelectedSentencePlayback(){
 
   // 在尚未开始播放的短暂定位阶段再次按下，也按“暂停本句”处理。
   if(sameLockedSentence&&sentenceStartTimer){
+    sentencePlaybackGeneration++;
     clearTimeout(sentenceStartTimer);
     sentenceStartTimer=null;
     playSentenceMode=true;
@@ -4025,8 +4035,8 @@ function scheduleNextSentencePlay(finishedIndex){
   }
 
   sentenceAutoTimer=setTimeout(()=>{
+    if(generation!==sentencePlaybackGeneration||$("#sentenceAutoMode").value!==mode)return;
     sentenceAutoTimer=null;
-    if(generation!==sentencePlaybackGeneration || $("#sentenceAutoMode").value!=="continuous" && targetIndex!==finishedIndex)return;
     sentenceEndHandling=false;
     sentenceCaptionLocked=false;
     lockedSentenceIndex=-1;
@@ -4060,22 +4070,20 @@ let lastSentenceButtonClick=0;
 let lastSentenceButtonCue=null;
 $("#playCurrent").onclick=function(){
   if(!playerReady||!subs[current])return;
-  if($("#sentenceAutoMode").value==="cut"){
-    requestSelectedCutPlayback();
+  const mode=$("#sentenceAutoMode").value;
+  if(mode==="cut"){
+    $("#playSelectedCutParts").click();
     return;
   }
   const time=performance.now();
   const cue=subs[current];
-  const doubleClick=lastSentenceButtonCue===cue && time-lastSentenceButtonClick<=400;
+  const doubleClick=mode==="single"&&lastSentenceButtonCue===cue&&time-lastSentenceButtonClick<=400;
   lastSentenceButtonClick=doubleClick?0:time;
-  lastSentenceButtonCue=doubleClick?null:cue;
+  lastSentenceButtonCue=mode==="single"&&!doubleClick?cue:null;
   if(doubleClick){
-    enforceSingleSentenceMode();
     playSelectedSentence();
     return;
   }
-  // Preserve a pending start so a single tap can pause it correctly.
-  if(!sentenceStartTimer)enforceSingleSentenceMode();
   toggleSelectedSentencePlayback();
 };
 
@@ -4991,14 +4999,7 @@ function renderSentenceCuts(){
     if(cutState.selected.has(index))button.style.outline="2px solid #38bdf8";
     button.onclick=()=>{
       if(cutState.selected.has(index))cutState.selected.delete(index);
-      else{
-        cutState.selected.add(index);
-        const mode=$("#sentenceAutoMode");
-        if(mode.value!=="cut"){
-          mode.value="cut";
-          mode.dispatchEvent(new Event("change"));
-        }
-      }
+      else cutState.selected.add(index);
       renderSentenceCuts();
       playSentenceCuts();
     };
@@ -5021,6 +5022,7 @@ function saveSentenceCuts(){
 function updateCutPlaybackButton(){
   const run=cutState.run;
   $("#playSelectedCutParts").textContent=run && !run.paused ? "暂停选中" : "播放选中";
+  if($("#sentenceAutoMode").value==="cut")updatePlayCurrentButtonState();
 }
 
 function clearSentenceCutRun(){
@@ -5032,24 +5034,29 @@ function startSentenceCutPart(){
   const run=cutState.run;
   const [start]=run.parts[run.position];
   run.seekDeadline=Date.now()+1500;
+  pause();
   seekKeepingSentence(start,current);
-  play();
 }
 
 function playSentenceCuts(){
-  cancelSentencePlay();
-  pause();
-  if(!playerReady||!cutState.selected.size)return;
-  cancelSegmentPlay();
+  const mode=$("#sentenceAutoMode");
+  if(cutState.selected.size&&mode.value!=="cut"){
+    mode.value="cut";
+    mode.dispatchEvent(new Event("change"));
+  }else{
+    cancelSentencePlay();
+    cancelSegmentPlay();
+    pause();
+  }
   const cue=subs[current];
+  if(!playerReady||!cue||!cutState.selected.size)return;
   const indices=[...cutState.selected].sort((a,b)=>a-b);
   const parts=indices.map(i=>[i ? cutState.ends[i-1] : cue.start,cutState.ends[i]??cue.end]);
-  const repeatSelected=$("#sentenceAutoMode").value==="cut";
   const times=$("#sentencePlayTimes").value;
   cutState.run={
     key:cutState.key,parts,position:0,seekDeadline:0,resumeAt:0,completed:0,
-    repeats:repeatSelected ? (times==="infinite" ? Infinity : Number(times)||1) : 1,
-    interval:repeatSelected ? (Number($("#sentenceAutoInterval").value)||0)*1000 : 0
+    repeats:times==="infinite" ? Infinity : Number(times)||1,
+    interval:(Number($("#sentenceAutoInterval").value)||0)*1000
   };
   sentenceCaptionLocked=true;
   lockedSentenceIndex=current;
@@ -5061,7 +5068,7 @@ function playSentenceCuts(){
 function monitorSentenceCuts(time){
   const run=cutState.run;
   if(!run)return false;
-  if(run.key!==sentenceCutKey()){
+  if($("#sentenceAutoMode").value!=="cut"||run.key!==sentenceCutKey()){
     cancelSentencePlay();
     pause();
     return false;
@@ -5076,8 +5083,11 @@ function monitorSentenceCuts(time){
   }
   const [start,end]=run.parts[run.position];
   if(run.seekDeadline){
-    if(time>=start-0.12&&time<end)run.seekDeadline=0;
-    else if(Date.now()<run.seekDeadline)return true;
+    const nativeSeeking=currentSourceType!=="youtube"&&$("#nativePlayer").seeking;
+    if(!nativeSeeking&&time>=start-0.12&&time<end-0.02){
+      run.seekDeadline=0;
+      play();
+    }else if(Date.now()<run.seekDeadline)return true;
     else{
       pause();
       clearSentenceCutRun();
@@ -5132,7 +5142,11 @@ $("#addSentenceCut").onclick=()=>{
   }
   const time=playhead>=start+0.08 && playhead<=end-0.08
     ? playhead : (start+end)/2;
-  if(run){cancelSentencePlay();pause();}
+  cancelSentencePlay();
+  sentenceCaptionLocked=true;
+  lockedSentenceIndex=current;
+  pause();
+  updatePlayCurrentButtonState();
   cutState.selected.clear();
   cutState.ends.splice(index,0,Math.round(time*1000)/1000);
   $("#sentenceCutStatus").textContent="已分成 "+(cutState.ends.length+1)+" 段";
