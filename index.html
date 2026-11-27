@@ -15,8 +15,8 @@ body{margin:0;background:#f5f5f7;color:#222;font-family:-apple-system,BlinkMacSy
 .wrap{max-width:820px;margin:auto;padding:14px 12px 40px}
 h1{font-size:24px;margin:8px 0 4px}
 .version{font-size:12px;color:#888;margin-bottom:10px}
-.card{background:#fff;border-radius:16px;padding:14px;margin:12px 0}
-.card-collapse-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:0 0 8px;background:transparent;color:#222;border:0;border-radius:0;text-align:left;font-size:15px;cursor:pointer}
+.card{background:#fff;border-radius:16px;padding:8px 10px;margin:2px 0}
+.card-collapse-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:0 0 4px;background:transparent;color:#222;border:0;border-radius:0;text-align:left;font-size:15px;cursor:pointer}
 .card-collapse-toggle .triangle{display:inline-block;width:14px;font-size:13px;line-height:1;transition:transform .15s ease}
 .card-collapse-toggle .collapse-title{font-weight:700;min-width:0;overflow-wrap:anywhere}
 .card.collapsed>.card-collapse-toggle{padding-bottom:0}
@@ -164,7 +164,7 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 .wrap{display:flex;flex-direction:column}
 .wrap>.card{flex:none}
 .cue-word-controls{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-top:10px}.cue-word-controls button{background:#eee;color:#222;min-width:0;padding:10px 5px;font-size:14px}
-.cue-sentence-shift{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.cue-sentence-shift button{background:#eee;color:#222;min-height:48px}.cue-time-panel{margin-top:14px;border-top:1px solid #e6e6e8;padding-top:12px}
+.cue-sentence-shift{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.cue-sentence-shift button{background:#eee;color:#222;min-height:48px}
 .cue-time-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cue-time-column{text-align:center;min-width:0}
 .cue-time-column>b{display:block;margin-bottom:8px;font-size:15px}
@@ -178,16 +178,29 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 #timeSubtitlePlayCard .speed-preset-steps button{font-size:12px}
 #timeSubtitlePlayCard .time-speed-grid,#timeSubtitlePlayCard .time-play-grid,#timeSubtitlePlayCard .cue-edit-grid{gap:6px;margin-top:6px}
 /* 简洁字幕编辑布局 */
-#subtitleAdjustCard .cue-time-three{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
-#subtitleAdjustCard .cue-time-three label{min-width:0;text-align:center;font-size:12px}
-#subtitleAdjustCard .cue-time-three input,#subtitleAdjustCard .cue-time-three select{margin-top:5px;min-width:0;width:100%;padding:9px 2px;text-align:center;text-align-last:center;font-size:12px;height:40px}
-#subtitleAdjustCard .cue-time-three .cue-time-pair{gap:4px}
-#subtitleAdjustCard .cue-time-three .cue-time-pair button{padding:8px 0}
+#cueTimeCard .cue-time-three{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
+#cueTimeCard .cue-time-three label{min-width:0;text-align:center;font-size:12px}
+#cueTimeCard .cue-time-three input,#cueTimeCard .cue-time-three select{margin-top:5px;min-width:0;width:100%;padding:9px 2px;text-align:center;text-align-last:center;font-size:12px;height:40px}
+#cueTimeCard .cue-time-three .cue-time-pair{gap:4px}
+#cueTimeCard .cue-time-three .cue-time-pair button{padding:8px 0}
 #subtitleDetailEditorCard .grid>.small{grid-column:1/-1}
 #subtitleDetailEditorCard .item .controls{display:grid;grid-template-columns:1fr 0.7fr 0.7fr 1fr;gap:5px}
 #subtitleDetailEditorCard .item .controls button{min-width:0;padding:9px 2px;font-size:12px}
 #subtitleAdjustCard .cue-shift-controls button{font-size:14px}
-#subtitleAdjustCard .cue-time-panel .status:empty{display:none}
+.wrap > .card .status:empty{display:none}
+#cueTimeCard .cue-time-three input,#cueTimeCard .cue-time-three select{margin-top:2px;height:36px}
+#cueTimeCard .cue-time-three .cue-time-pair button{padding:4px 0}
+#cueTimeTarget{margin:0 0 4px}
+#segmentTransportCard .time-play-grid{margin-top:0;gap:4px}
+#segmentTransportCard button.needsPlayer{min-width:0;padding:6px 2px;background:#eee;color:#222;font-size:13px}
+#sentenceCutCard .controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:0}
+#sentenceCutCard .controls button,#sentenceCutNumbers button{min-width:0;padding:6px 2px}
+#sentenceCutNumbers{display:grid;gap:4px;overflow-x:auto;padding:3px 2px}
+#sentenceCutNumbers:empty{display:none}
+#sentenceCutNumbers button[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #38bdf8}
+#sentenceCutNumbers button[data-time-target]{box-shadow:inset 0 0 0 2px #0369a1;background:#e0f2fe}
+#sentenceCutStatus{margin-top:4px}
+#timeSubtitlePlayCard :is(.time-speed-grid,.time-play-grid,.cue-edit-grid){gap:4px;margin-top:4px}
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -290,11 +303,8 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   </div>
   <div class="time-play-grid">
     <button class="secondary needsPlayer" id="prev">上一句</button>
-    <button class="needsPlayer" id="playCurrent">继续本句</button>
-    <button class="secondary needsPlayer" id="next">下一句</button>
-    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
     <button class="needsPlayer" id="cueTogglePlay">播放／暂停</button>
-    <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
+    <button class="secondary needsPlayer" id="next">下一句</button>
   </div>
   <div class="cue-edit-grid">
     <button type="button" class="secondary" id="splitCurrentCue">分割（Q）</button>
@@ -351,12 +361,12 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
 
 <div class="card" id="sentenceCutCard">
   <b>本句切割</b>
-  <div class="controls" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px">
+  <div class="controls">
     <button class="secondary needsPlayer" id="addSentenceCut">分割</button>
     <button class="secondary needsPlayer" id="playSelectedCutParts">播放选中</button>
     <button class="secondary" id="deleteSentenceCuts">删除</button>
   </div>
-  <div id="sentenceCutNumbers" style="display:grid;gap:6px;overflow-x:auto;padding:6px 2px"></div>
+  <div id="sentenceCutNumbers"></div>
   <div id="sentenceCutStatus" class="status" aria-live="polite"></div>
 </div>
 
@@ -514,22 +524,13 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <b>字幕编辑</b>
   <div id="list" class="subtitle-strip"></div>
   <div class="cue-sentence-shift"><button type="button" class="secondary" id="cueSentenceEarlier">← 句子前移</button><button type="button" class="secondary" id="cueSentenceLater">句子后移 →</button></div>
+  <div id="cueSentenceStatus" class="status" aria-live="polite"></div>
 </div>
 <div class="card" id="subtitleAdjustCard">
   <b>字幕调整</b>
   <div class="cue-word-controls"><button type="button" class="secondary" id="absorbPrevWord">← 吸收上一句词</button><button type="button" class="secondary" id="undoWordChange">撤销</button><button type="button" class="secondary" id="absorbNextWord">吸收下一句词 →</button></div>
   <div class="cue-shift-controls"><button type="button" class="secondary" id="cueShiftEarlier">句首 −</button><select id="cueShiftMs" aria-label="每次移动的英文单词数"></select><button type="button" class="secondary" id="cueShiftLater">句末 −</button></div>
-  <div class="cue-time-panel"><div class="cue-time-three">
-    <label>开始时间<input id="activeCueStart" class="timeinput" type="text" aria-label="当前句开始时间"></label>
-    <label>时间调整数值<select id="cueTimeStep" aria-label="句首句末时间调整毫秒数"></select></label>
-    <label>结束时间<input id="activeCueEnd" class="timeinput" type="text" aria-label="当前句结束时间"></label>
-    <div class="cue-time-pair"><button type="button" class="secondary" id="cueStartMinus">−</button><button type="button" class="secondary" id="cueStartPlus">＋</button></div>
-    <div></div>
-    <div class="cue-time-pair"><button type="button" class="secondary" id="cueEndMinus">−</button><button type="button" class="secondary" id="cueEndPlus">＋</button></div>
-  </div>
   <div id="cueShiftStatus" class="status" aria-live="polite"></div>
-  <div id="cueTimeStatus" class="status" aria-live="polite"></div>
-  <div id="cueSentenceStatus" class="status" aria-live="polite"></div></div>
 </div>
 
 
@@ -680,6 +681,27 @@ input[type=text],input[type=email],input[type=password],textarea,select{width:10
   <div id="pageSearchStatus" class="status">搜索当前导入的全部字幕，结果会全部显示在下面</div>
   <div id="subtitleSearchResults" style="display:grid;gap:8px;margin-top:10px"></div>
 </div>
+<div class="card" id="segmentTransportCard">
+  <b>分段播放</b>
+  <div class="time-play-grid">
+    <button class="secondary needsPlayer" id="cueRewind">⏪ 快退</button>
+    <button class="needsPlayer" id="playCurrent">继续本句</button>
+    <button class="secondary needsPlayer" id="cueForward">快进 ⏩</button>
+  </div>
+</div>
+<div class="card" id="cueTimeCard">
+  <b>开始／结束时间</b>
+  <div id="cueTimeTarget" class="small" aria-live="polite"></div>
+  <div class="cue-time-three">
+    <label>开始时间<input id="activeCueStart" class="timeinput" type="text" aria-label="开始时间"></label>
+    <label>时间调整数值<select id="cueTimeStep" aria-label="每次调整的毫秒数"></select></label>
+    <label>结束时间<input id="activeCueEnd" class="timeinput" type="text" aria-label="结束时间"></label>
+    <div class="cue-time-pair"><button type="button" class="secondary" id="cueStartMinus">−</button><button type="button" class="secondary" id="cueStartPlus">＋</button></div>
+    <div></div>
+    <div class="cue-time-pair"><button type="button" class="secondary" id="cueEndMinus">−</button><button type="button" class="secondary" id="cueEndPlus">＋</button></div>
+  </div>
+  <div id="cueTimeStatus" class="status" aria-live="polite"></div>
+</div>
 </div>
 
 <div id="vocabImageViewer" class="image-viewer" role="dialog" aria-modal="true" aria-label="生词图片预览" onclick="closeVocabImage(event)">
@@ -727,7 +749,10 @@ function initCollapsibleCards(){
     else if(card.querySelector("#rewindStep"))rank=3;
     else if(card.querySelector("#nativePlayer"))rank=5;
     else if(card.id==="timeSubtitlePlayCard")rank=6;
+    else if(card.id==="segmentTransportCard")rank=6.5;
     else if(card.querySelector("#sentenceAutoMode"))rank=7;
+    else if(card.id==="sentenceCutCard")rank=7.4;
+    else if(card.id==="cueTimeCard")rank=7.5;
     card.style.order=String(rank||remainder++);
   });
   const ORDER_KEY="ytCustomCardOrder:v2";
@@ -740,6 +765,12 @@ function initCollapsibleCards(){
         const ai=order.indexOf(a.dataset.cardOrderKey),bi=order.indexOf(b.dataset.cardOrderKey);
         return (ai<0?1000+Number(a.style.order):ai)-(bi<0?1000+Number(b.style.order):bi);
       });
+      for(const [id,anchor] of [["segmentTransportCard","timeSubtitlePlayCard"],["cueTimeCard","sentenceCutCard"]]){
+        if(order.includes(id))continue;
+        const index=ranked.findIndex(card=>card.id===id);
+        const [card]=ranked.splice(index,1);
+        ranked.splice(ranked.findIndex(item=>item.id===anchor)+1,0,card);
+      }
       ranked.forEach((c,i)=>c.style.order=String(i+1));
     }
   }catch(e){}
@@ -3535,6 +3566,7 @@ scheduleSubtitleFit();
 
 function updateTop(){
   if(cutState && cutState.key!==sentenceCutKey())renderSentenceCuts();
+  else syncTimeEditor();
   updateSegmentPlayCount();
   $("#currentMeta").textContent=subs.length?`${current+1} / ${subs.length}`:"0 / 0";
   const subtitleEl=$("#currentSubtitle");
@@ -3583,10 +3615,7 @@ function renderAll(){
     };
   });
   updateTop();
-  const active=subs[current];
-  const startInput=document.getElementById("activeCueStart"),endInput=document.getElementById("activeCueEnd");
-  if(startInput)startInput.value=active?fmt(active.start):"";
-  if(endInput)endInput.value=active?fmt(active.end):"";
+
 }
 
 function insertCueNear(i,direction){
@@ -3696,12 +3725,7 @@ function transferWords(sourceIndex,targetIndex,fromEnd,toStart,count){
 // Plus: current last words move to next cue's beginning.
 for(const [id,field] of [["activeCueStart","start"],["activeCueEnd","end"]]){
   document.getElementById(id).addEventListener("change",e=>{
-    if(!subs[current])return;
-    const next=parseTime(e.target.value);
-    if(!Number.isFinite(next)||next<0||(field==="start"&&next>subs[current].end)||(field==="end"&&next<subs[current].start)){
-      e.target.value=fmt(subs[current][field]);return;
-    }
-    recordCueUndo();subs[current][field]=next;renderAll();scheduleSubtitleSave();
+    setEditedTime(field,parseNewCueTime(e.target.value));
   });
 }
 document.getElementById("cueShiftEarlier").addEventListener("click",()=>transferWords(current,current-1,false,false,Number(cueShiftSelect.value)));
@@ -3760,20 +3784,62 @@ for(const ms of [1,5,10,20,50,100,200,300,400,500,600,700,800,900,1000,1500,2000
   const option=document.createElement("option");option.value=ms;option.textContent=ms+" 毫秒";cueTimeStep.appendChild(option);
 }
 cueTimeStep.value="100";
-function adjustCurrentCueBoundary(field,direction){
-  const status=document.getElementById("cueTimeStatus");
+function timeEditorPart(){
+  if(cutState?.key===sentenceCutKey() && cutState.target!==null){
+    return sentenceCutParts()[cutState.target];
+  }
+}
+function syncTimeEditor(reset=false){
   const cue=subs[current];
-  if(!cue){status.textContent="请先选择一条字幕";return;}
-  const step=Number(cueTimeStep.value)/1000;
-  const candidate=Math.round((Number(cue[field])+direction*step)*1000)/1000;
-  if(!Number.isFinite(candidate)||candidate<0){status.textContent="时间不能小于 0";return;}
-  if(field==="start"&&candidate>=Number(cue.end)){status.textContent="句首时间必须早于句末时间";return;}
-  if(field==="end"&&candidate<=Number(cue.start)){status.textContent="句末时间必须晚于句首时间";return;}
-  recordCueUndo();
-  cue[field]=candidate;
-  // Never seek, pause, play or change the selected cue here.
-  renderAll();scheduleSubtitleSave();
-  status.textContent=(field==="start"?"句首":"句末")+"已"+(direction<0?"提前":"延后")+" "+cueTimeStep.value+" 毫秒；视频进度不变";
+  const part=timeEditorPart();
+  const label=part ? `第 ${current+1} 句 · 第 ${cutState.target+1} 小段` :
+    cue ? `第 ${current+1} 句` : "请先导入字幕";
+  if($("#cueTimeTarget").textContent!==label)$("#cueTimeTarget").textContent=label;
+  for(const [id,value] of [["activeCueStart",part?.start??cue?.start],["activeCueEnd",part?.end??cue?.end]]){
+    const input=$("#"+id);
+    input.disabled=!cue;
+    if(reset || document.activeElement!==input)input.value=cue ? fmt(value) : "";
+  }
+  for(const id of ["cueStartMinus","cueStartPlus","cueEndMinus","cueEndPlus"])$("#"+id).disabled=!cue;
+}
+function setEditedTime(field,candidate){
+  const status=$("#cueTimeStatus");
+  const cue=subs[current];
+  if(!cue)return;
+  const part=timeEditorPart();
+  const range=part||cue;
+  const start=field==="start"?candidate:range.start;
+  const end=field==="end"?candidate:range.end;
+  const duration=currentSourceType==="youtube"?Number(player?.getDuration?.()):Number($("#nativePlayer").duration);
+  if(!Number.isFinite(candidate)||start<0||start>=end||
+      (part && (Math.round((end-start)*1000)<40 || (Number.isFinite(duration)&&duration>0&&candidate>duration)))){
+    syncTimeEditor(true);
+    status.textContent=part ? "请输入有效时间，小段至少保留 40 毫秒" : "请输入有效时间，开始必须早于结束";
+    return;
+  }
+  if(part){
+    if(cutState.run){
+      cancelSentencePlay();
+      pause();
+      sentenceCaptionLocked=true;
+      lockedSentenceIndex=current;
+      $("#sentenceCutStatus").textContent="小段时间已更新，点「播放选中」试听";
+    }
+    cutState.overrides[part.key]=[start,end];
+    saveSentenceCuts();
+  }else{
+    recordCueUndo();
+    cue[field]=candidate;
+    renderAll();
+    scheduleSubtitleSave();
+  }
+  syncTimeEditor(true);
+  status.textContent=part ? `第 ${cutState.target+1} 小段时间已更新` : "本句时间已更新";
+}
+function adjustCurrentCueBoundary(field,direction){
+  const range=timeEditorPart()||subs[current];
+  if(!range)return;
+  setEditedTime(field,Math.round(range[field]*1000+direction*Number(cueTimeStep.value))/1000);
 }
 document.getElementById("cueStartMinus").addEventListener("click",()=>adjustCurrentCueBoundary("start",-1));
 document.getElementById("cueStartPlus").addEventListener("click",()=>adjustCurrentCueBoundary("start",1));
@@ -4968,10 +5034,22 @@ renderAll();
 })();
 
 
-var cutState={key:null,ends:[],selected:new Set(),run:null};
+var cutState={key:null,ends:[],overrides:{},target:null,selected:new Set(),run:null};
 function sentenceCutKey(){
   const cue=subs[current];
   return cue ? JSON.stringify([subtitleStorageKey(),cue.start,cue.end,cue.text]) : "";
+}
+
+function sentenceCutParts(){
+  const cue=subs[current];
+  if(!cue)return [];
+  const boundaries=[cue.start,...cutState.ends,cue.end];
+  return boundaries.slice(0,-1).map((baseStart,index)=>{
+    const baseEnd=boundaries[index+1];
+    const key=JSON.stringify([baseStart,baseEnd]);
+    const [start,end]=cutState.overrides[key]??[baseStart,baseEnd];
+    return {key,baseStart,baseEnd,start,end};
+  });
 }
 
 function renderSentenceCuts(){
@@ -4979,9 +5057,15 @@ function renderSentenceCuts(){
   if(cutState.key!==key){
     cutState.key=key;
     cutState.selected.clear();
+    cutState.target=null;
+    cutState.ends=[];
+    cutState.overrides={};
+    $("#cueTimeStatus").textContent="";
     try{
-      cutState.ends=key ? JSON.parse(localStorage.getItem("sentence-cuts:"+key)||"[]") : [];
-    }catch{cutState.ends=[];}
+      const saved=key ? JSON.parse(localStorage.getItem("sentence-cuts:"+key)||"[]") : [];
+      cutState.ends=Array.isArray(saved) ? saved : Array.isArray(saved?.ends) ? saved.ends : [];
+      cutState.overrides=saved?.overrides||{};
+    }catch{}
     $("#sentenceCutStatus").textContent="播放到切点时点「分割」";
   }
   const cue=subs[current];
@@ -5000,22 +5084,27 @@ function renderSentenceCuts(){
     button.style.paddingInline="0";
     button.textContent=String(index+1);
     button.setAttribute("aria-pressed",String(cutState.selected.has(index)));
-    if(cutState.selected.has(index))button.style.outline="2px solid #38bdf8";
+    if(cutState.target===index)button.setAttribute("data-time-target","");
     button.onclick=()=>{
       if(cutState.selected.has(index))cutState.selected.delete(index);
       else cutState.selected.add(index);
+      cutState.target=index;
+      $("#cueTimeStatus").textContent="";
       renderSentenceCuts();
       playSentenceCuts();
     };
     row.append(button);
   }
   $("#deleteSentenceCuts").disabled=!cutState.ends.length;
+  syncTimeEditor(true);
 }
 
 function saveSentenceCuts(){
   try{
     const key="sentence-cuts:"+cutState.key;
-    if(cutState.ends.length)localStorage.setItem(key,JSON.stringify(cutState.ends));
+    const overrides=Object.fromEntries(sentenceCutParts().filter(part=>cutState.overrides[part.key]).map(part=>[part.key,cutState.overrides[part.key]]));
+    cutState.overrides=overrides;
+    if(cutState.ends.length)localStorage.setItem(key,JSON.stringify({ends:cutState.ends,overrides}));
     else localStorage.removeItem(key);
   }catch{
     $("#sentenceCutStatus").textContent="切点已更新，本次浏览器无法保存";
@@ -5055,10 +5144,11 @@ function playSentenceCuts(){
   const cue=subs[current];
   if(!playerReady||!cue||!cutState.selected.size)return;
   const indices=[...cutState.selected].sort((a,b)=>a-b);
-  const parts=indices.map(i=>[i ? cutState.ends[i-1] : cue.start,cutState.ends[i]??cue.end]);
+  const ranges=sentenceCutParts();
+  const parts=indices.map(i=>[ranges[i].start,ranges[i].end]);
   const times=$("#sentencePlayTimes").value;
   cutState.run={
-    key:cutState.key,parts,position:0,seekDeadline:0,resumeAt:0,completed:0,
+    key:cutState.key,parts,indices,position:0,seekDeadline:0,resumeAt:0,completed:0,
     repeats:times==="infinite" ? Infinity : Number(times)||1,
     interval:(Number($("#sentenceAutoInterval").value)||0)*1000
   };
@@ -5132,19 +5222,19 @@ $("#addSentenceCut").onclick=()=>{
   renderSentenceCuts();
   const cue=subs[current];
   if(!playerReady||!cue)return;
-  const boundaries=[cue.start,...cutState.ends,cue.end];
+  const parts=sentenceCutParts();
   const playhead=now();
   const run=cutState.run;
-  const activePart=run?.key===cutState.key && !run.resumeAt ? run.parts[run.position] : null;
-  let index=activePart ? boundaries.indexOf(activePart[0]) : -1;
+  let index=run?.key===cutState.key && !run.resumeAt ? run.indices[run.position] : -1;
   if(index<0 && cutState.selected.size===1)index=[...cutState.selected][0];
-  if(index<0)index=boundaries.findIndex((start,i)=>playhead>=start && playhead<boundaries[i+1]);
+  if(index<0)index=parts.findIndex(part=>playhead>=part.start && playhead<part.end);
   if(index<0 && !cutState.ends.length)index=0;
   if(index<0){
     $("#sentenceCutStatus").textContent="请先选择要分割的小段";
     return;
   }
-  const start=boundaries[index],end=boundaries[index+1];
+  const part=parts[index];
+  const start=Math.max(part.start,part.baseStart),end=Math.min(part.end,part.baseEnd);
   if(end-start<0.16){
     $("#sentenceCutStatus").textContent="这一小段太短，无法继续分割";
     return;
@@ -5157,7 +5247,14 @@ $("#addSentenceCut").onclick=()=>{
   pause();
   updatePlayCurrentButtonState();
   cutState.selected.clear();
-  cutState.ends.splice(index,0,Math.round(time*1000)/1000);
+  const split=Math.round(time*1000)/1000;
+  cutState.ends.splice(index,0,split);
+  if(cutState.overrides[part.key]){
+    cutState.overrides[JSON.stringify([part.baseStart,split])]=[part.start,split];
+    cutState.overrides[JSON.stringify([split,part.baseEnd])]=[split,part.end];
+  }
+  cutState.target=index+1;
+  $("#cueTimeStatus").textContent="";
   $("#sentenceCutStatus").textContent="已分成 "+(cutState.ends.length+1)+" 段";
   saveSentenceCuts();
 };
@@ -5195,6 +5292,8 @@ $("#deleteSentenceCuts").onclick=()=>{
     ? cutState.ends.filter((_,index)=>!cutState.selected.has(index) &&
       !(index===cutState.ends.length-1 && cutState.selected.has(index+1))) : [];
   cutState.selected.clear();
+  cutState.target=null;
+  $("#cueTimeStatus").textContent="";
   $("#sentenceCutStatus").textContent="已删除切点";
   saveSentenceCuts();
 };
